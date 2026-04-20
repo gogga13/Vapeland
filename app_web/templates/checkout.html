@@ -1,0 +1,199 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оформлення замовлення | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260419-1">
+</head>
+<body class="site-page checkout-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell">
+        <div class="container">
+            <div class="page-head page-head--compact">
+                <div>
+                    <p class="section-kicker">Checkout</p>
+                    <h1 class="section-title">Оформлення<br><span>замовлення</span></h1>
+                    <p class="section-copy">Перевірте контакти, доставку та підсумок перед підтвердженням покупки.</p>
+                </div>
+            </div>
+
+            {% if messages %}
+            <div class="messages-stack messages-stack--spaced">
+                {% for message in messages %}
+                <div class="message-chip">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="order-layout order-layout--commerce">
+                <div class="auth-card auth-card--surface checkout-card">
+                    <section class="checkout-section">
+                        <h3 class="checkout-section__title">1. Покупець</h3>
+                        <div class="checkout-profile-grid">
+                            <div class="input-group">
+                                <label>Ім'я</label>
+                                <input type="text" value="{{ user.first_name }}" class="input-field" readonly>
+                            </div>
+                            <div class="input-group">
+                                <label>Прізвище</label>
+                                <input type="text" value="{{ user.last_name }}" class="input-field" readonly>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Телефон</label>
+                            <input type="text" value="{{ user.profile.phone }}" class="input-field" readonly>
+                        </div>
+                    </section>
+
+                    <section class="checkout-section">
+                        <h3 class="checkout-section__title">2. Доставка</h3>
+                        <div class="notice-box">
+                            <strong>Адреса та місто беруться з профілю</strong>
+                            <p>Перед підтвердженням перевірте, що місто, відділення або адреса доставки заповнені коректно.</p>
+                        </div>
+                        <div class="np-delivery-preview">
+                            <div class="np-delivery-preview__item">
+                                <span>Місто</span>
+                                <strong>{{ user.profile.city|default:"Не обрано" }}</strong>
+                            </div>
+                            <div class="np-delivery-preview__item">
+                                <span>Відділення / пошттомат</span>
+                                <strong>{{ user.profile.address|default:"Не обрано" }}</strong>
+                            </div>
+                        </div>
+                        <a href="{% url 'profile' %}" class="inline-link">Змінити адресу в профілі</a>
+                    </section>
+
+                    <section class="checkout-section">
+                        <h3 class="checkout-section__title">3. Бонус до дня народження</h3>
+                        <div class="notice-box">
+                            <strong>Бонус 150 грн</strong>
+                            {% if birthday_bonus_allowed %}
+                            <p>Ваш профіль підходить під бонус до дня народження. Менеджер перевірить документи перед фінальним підтвердженням.</p>
+                            {% else %}
+                            <p>Щоб активувати бонус, додайте дату народження в профілі. Бонус діє тільки в сам день народження.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="auth-card auth-card--surface summary-card">
+                    <h3 class="summary-card__title">Ваше замовлення</h3>
+
+                    <div class="checkout-items">
+                        {% for item in cart_items %}
+                        <article class="checkout-item">
+                            <div class="checkout-item-main">
+                                <img src="{{ item.image_url }}" alt="{{ item.product.name }}" class="cart-item-thumb">
+                                <div class="checkout-item-copy">
+                                    <strong>{{ item.product.name }}</strong>
+                                    <span>{{ item.variant_name }} × {{ item.quantity }}</span>
+                                    {% if item.has_discount %}
+                                    <span class="checkout-item-summary__label">
+                                        {% if item.discount_badge %}<span class="discount-badge discount-badge--mini">{{ item.discount_badge }}</span>{% endif %}
+                                        {{ item.discount_label }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="checkout-item-summary__prices">
+                                {% if item.has_discount %}
+                                <span class="cart-item-price-old">{{ item.original_total|floatformat:0 }} грн</span>
+                                {% endif %}
+                                <strong>{{ item.total|floatformat:0 }} грн</strong>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+
+                    <form method="POST" action="{% url 'place_order' %}" id="checkout-form">
+                        {% csrf_token %}
+                        <div class="summary-list">
+                            <div class="summary-row">
+                                <span>Сума товарів</span>
+                                <strong id="subtotal-value">{{ pricing.subtotal|floatformat:0 }} грн</strong>
+                            </div>
+                            <div class="summary-row">
+                                <span>Акційні знижки на товари</span>
+                                <strong id="product-discount-value">{% if pricing.product_discount_total > 0 %}-{{ pricing.product_discount_total|floatformat:0 }}{% else %}0{% endif %} грн</strong>
+                            </div>
+                            <div class="summary-row">
+                                <span>{{ pricing.percent_label }}</span>
+                                <strong id="percent-discount-value">-{% if pricing.percent_discount > 0 %}{{ pricing.percent_discount|floatformat:0 }}{% else %}0{% endif %} грн</strong>
+                            </div>
+                            <div class="summary-row" id="birthday-row" style="display: none;">
+                                <span>Бонус до дня народження</span>
+                                <strong id="birthday-discount-value">-{{ birthday_preview.birthday_discount|floatformat:0 }} грн</strong>
+                            </div>
+                            <div class="summary-row">
+                                <span>Доставка</span>
+                                <strong>{{ pricing.delivery_label }}</strong>
+                            </div>
+                            <div class="summary-row summary-row--total">
+                                <span>До сплати</span>
+                                <strong id="final-total-value">{{ pricing.final_total|floatformat:0 }} грн</strong>
+                            </div>
+                        </div>
+
+                        <label class="checkbox-row checkout-bonus-row {% if not birthday_bonus_allowed %}is-disabled{% endif %}">
+                            <input type="checkbox" name="birthday_bonus_ack" id="birthday_bonus_ack" {% if not birthday_bonus_allowed %}disabled{% endif %}>
+                            <span>Підтверджую, що сьогодні мій день народження, і погоджуюся, що менеджер перевірить документи перед підтвердженням бонусу 150 грн.</span>
+                        </label>
+
+                        <p class="summary-note">
+                            {% if birthday_bonus_allowed %}
+                            Якщо чекбокс активовано, менеджер перевірить документи та підтвердить бонус перед фінальним узгодженням.
+                            {% else %}
+                            Додайте дату народження в профілі, щоб активувати бонус до дня народження.
+                            {% endif %}
+                        </p>
+
+                        <button type="submit" class="btn-primary btn-block checkout-submit">ПІДТВЕРДИТИ ЗАМОВЛЕННЯ</button>
+                    </form>
+                </aside>
+            </div>
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+
+    <script>
+        (function () {
+            const birthdayCheckbox = document.getElementById('birthday_bonus_ack');
+            const birthdayRow = document.getElementById('birthday-row');
+            const finalTotalValue = document.getElementById('final-total-value');
+            const baseFinalTotal = Number('{{ pricing.final_total }}'.replace(',', '.'));
+            const previewDiscount = Number('{{ birthday_preview.birthday_discount }}'.replace(',', '.'));
+            const previewTotal = Number('{{ birthday_preview.final_total }}'.replace(',', '.'));
+
+            if (!birthdayCheckbox || !birthdayRow || !finalTotalValue) {
+                return;
+            }
+
+            const formatMoney = (value) => `${Math.max(0, value).toFixed(0)} грн`;
+
+            const syncTotals = () => {
+                if (birthdayCheckbox.checked) {
+                    birthdayRow.style.display = 'flex';
+                    finalTotalValue.textContent = formatMoney(previewTotal);
+                } else {
+                    birthdayRow.style.display = 'none';
+                    finalTotalValue.textContent = formatMoney(baseFinalTotal);
+                }
+            };
+
+            birthdayCheckbox.addEventListener('change', syncTotals);
+            if (previewDiscount <= 0) {
+                birthdayCheckbox.checked = false;
+            }
+            syncTotals();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+Django>=5.1,<5.2
+django-allauth>=65,<66
+django-import-export>=4,<5
+django-phonenumber-field[phonenumberslite]>=8,<9
+openpyxl>=3.1,<4
+Pillow>=10,<12
+requests>=2.31,<3
+PyMySQL>=1.1,<2

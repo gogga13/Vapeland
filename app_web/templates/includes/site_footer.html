@@ -1,0 +1,75 @@
+{% load static %}
+<footer class="site-footer site-footer--global">
+    <div class="container footer-shell footer-shell--global">
+        <div class="footer-top">
+            <div class="footer-brand-block">
+                <a href="{% url 'home' %}" class="footer-logo" aria-label="VapeLand">
+                    <span class="footer-logo-badge">
+                        <img src="{% static 'images/logo.png' %}" alt="VapeLand">
+                    </span>
+                    <span class="footer-logo-copy">
+                        <strong>VAPE LAND</strong>
+                        <span>premium vape shop</span>
+                    </span>
+                </a>
+                <p class="footer-brand-copy">
+                    VapeLand у Миколаєві: POD-системи, картриджі, ароматизатори та аксесуари з акуратним сервісом,
+                    швидким оформленням і neon-premium подачею.
+                </p>
+                <div class="footer-tags">
+                    <span class="footer-tag">18+</span>
+                    <span class="footer-tag">м. Миколаїв</span>
+                    <span class="footer-tag">09:00-20:00</span>
+                </div>
+            </div>
+
+            <div class="footer-grid footer-grid--rich">
+                <div class="footer-card">
+                    <span class="footer-label">НАВІГАЦІЯ</span>
+                    <strong>Швидкий доступ</strong>
+                    <p><a href="{% url 'catalog_page' %}">Каталог</a></p>
+                    <p><a href="{% url 'discounts' %}">Знижки</a></p>
+                    <p><a href="{% url 'responsible_consumption' %}">Відповідальне споживання</a></p>
+                </div>
+
+                <div class="footer-card">
+                    <span class="footer-label">СЕРВІС</span>
+                    <strong>Замовлення та доставка</strong>
+                    <p>Доставка по Миколаєву безкоштовна.</p>
+                    <p>По Україні безкоштовно від 1050 грн.</p>
+                    {% if support_telegram_url or support_instagram_url %}
+                    <p>Підтримка в Telegram та Instagram.</p>
+                    {% else %}
+                    <p>Контакти підтримки налаштовуються через env.</p>
+                    {% endif %}
+                </div>
+
+                <div class="footer-card">
+                    <span class="footer-label">КОНТАКТИ</span>
+                    <strong>Завжди на зв'язку</strong>
+                    {% if support_phone %}
+                    <p><a href="tel:{{ support_phone_href }}">{{ support_phone }}</a></p>
+                    {% endif %}
+                    {% if support_telegram_url %}
+                    <p><a href="{{ support_telegram_url }}" target="_blank" rel="noopener">Telegram</a></p>
+                    {% endif %}
+                    {% if support_instagram_url %}
+                    <p><a href="{{ support_instagram_url }}" target="_blank" rel="noopener">Instagram</a></p>
+                    {% endif %}
+                    {% if not support_phone and not support_telegram_url and not support_instagram_url %}
+                    <p>Контакти оновлюються.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p class="footer-copy">&copy; 2026 VapeLand. Продаж тільки для повнолітніх.</p>
+            <nav class="footer-nav" aria-label="Footer">
+                <a href="{% url 'age_restrictions' %}">18+</a>
+                <a href="{% url 'responsible_consumption' %}">Правила</a>
+                <a href="{% url 'profile' %}">Профіль</a>
+            </nav>
+        </div>
+    </div>
+</footer>

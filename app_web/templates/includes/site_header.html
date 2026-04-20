@@ -1,0 +1,121 @@
+{% load static %}
+<nav class="navbar site-header">
+    <div class="container site-header__inner">
+        <div class="site-header__brand-column">
+            <a href="/" class="logo site-header__logo-link" aria-label="VapeLand">
+                <span class="site-header__logo-badge">
+                    <span class="site-header__logo-glow" aria-hidden="true"></span>
+                    <img src="{% static 'images/logo.png' %}" alt="VapeLand" class="site-header__logo-image">
+                </span>
+                <span class="site-header__logo-copy">
+                    <span class="site-header__logo-wordmark">VAPE <span>LAND</span></span>
+                    <span class="site-header__logo-caption">premium vape shop</span>
+                </span>
+            </a>
+            {% include 'includes/search_widget.html' %}
+        </div>
+
+        <ul class="nav-links site-header__actions">
+            <li class="cart-wrapper">
+                <a href="{% url 'cart_detail' %}" class="nav-btn cart-btn cart-trigger" aria-label="Кошик">
+                    <span class="cart-trigger__label">Кошик</span>
+                    <span id="cart-count">{{ cart_count }}</span>
+                </a>
+                <div class="mini-cart">
+                    {% if cart_products %}
+                    <div class="mini-cart-items">
+                        {% for item in cart_products %}
+                        <div class="mini-item">
+                            <img src="{{ item.image_url }}" alt="{{ item.product.name }}">
+                            <div class="mini-info">
+                                <p class="mini-name">{{ item.product.name }}</p>
+                                <p class="mini-meta">{{ item.quantity }} шт. × {{ item.unit_price|floatformat:0 }} грн</p>
+                                {% if item.variant_name and item.variant_name != 'Стандарт' %}
+                                <p class="mini-meta">Варіант: {{ item.variant_name }}</p>
+                                {% endif %}
+                                {% if item.stock_limited and not item.is_available %}
+                                <p class="mini-meta mini-meta--alert">Недостатньо залишку</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mini-footer">
+                        <p>Разом: <span>{{ cart_total|floatformat:0 }} грн</span></p>
+                        <a href="{% url 'checkout' %}" class="btn-primary mini-footer__cta">Оформити замовлення</a>
+                    </div>
+                    {% else %}
+                    <p class="site-header__mini-empty">Кошик порожній</p>
+                    {% endif %}
+                </div>
+            </li>
+            <li><a href="{% url 'catalog_page' %}" class="nav-btn">Каталог</a></li>
+            <li><a href="{% url 'discounts' %}" class="nav-btn">Знижки</a></li>
+            {% if user.is_authenticated %}
+            <li class="profile-dropdown-item">
+                <div class="profile-dropdown" data-profile-dropdown>
+                    <button type="button" class="profile-btn" data-profile-toggle aria-expanded="false" aria-haspopup="true">
+                        Привіт, {{ user.first_name|default:user.username }} <span class="profile-btn__arrow">▼</span>
+                    </button>
+
+                    <div class="dropdown-menu" data-profile-menu hidden>
+                        <a href="{% url 'profile' %}">Мій профіль</a>
+                        <a href="{% url 'orders_page' %}">Мої замовлення</a>
+                        <form method="post" action="{% url 'account_logout' %}" class="dropdown-logout-form">
+                            {% csrf_token %}
+                            <button type="submit" class="logout">Вийти</button>
+                        </form>
+                    </div>
+                </div>
+            </li>
+            {% else %}
+            <li><a href="{% url 'account_login' %}" class="nav-cta">Вхід 18+</a></li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
+
+{% if request.resolver_match and request.resolver_match.url_name == 'home' and not disable_age_gate %}
+    {% include 'includes/age_gate.html' %}
+{% endif %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const dropdown = document.querySelector("[data-profile-dropdown]");
+    if (!dropdown) return;
+
+    const btn = dropdown.querySelector("[data-profile-toggle]");
+    const menu = dropdown.querySelector("[data-profile-menu]");
+
+    const closeMenu = function () {
+        dropdown.classList.remove("is-open");
+        btn.setAttribute("aria-expanded", "false");
+        menu.hidden = true;
+    };
+
+    const openMenu = function () {
+        dropdown.classList.add("is-open");
+        btn.setAttribute("aria-expanded", "true");
+        menu.hidden = false;
+    };
+
+    btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (dropdown.classList.contains("is-open")) {
+            closeMenu();
+        } else {
+            openMenu();
+        }
+    });
+
+    menu.addEventListener("click", function (e) {
+        e.stopPropagation();
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!dropdown.contains(e.target)) {
+            closeMenu();
+        }
+    });
+});
+</script>

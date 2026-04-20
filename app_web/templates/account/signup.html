@@ -1,0 +1,127 @@
+{% load static %}
+{% load socialaccount %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Реєстрація | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+</head>
+<body class="auth-page">
+    <div class="glow-bg"></div>
+
+    <div class="container auth-container">
+        <div class="auth-card auth-card--auth animate-fade">
+            <a href="/" class="logo auth-card__logo">VAPE <span>LAND</span></a>
+            <p class="section-kicker">Join VapeLand</p>
+            <h1 class="auth-title">Створити<br><span>акаунт</span></h1>
+            <p class="auth-subtitle">Приєднуйтесь до клубу VapeLand, щоб зберігати дані доставки, відстежувати замовлення й активувати бонуси.</p>
+
+            {% if messages %}
+            <div class="messages-stack">
+                {% for message in messages %}
+                <div class="message-chip">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <a href="{% provider_login_url 'google' %}" class="auth-google-btn">
+                <img src="{% static 'images/google.png' %}" alt="Google">
+                <span>Реєстрація через Google</span>
+            </a>
+
+            <div class="divider-text auth-divider">або заповніть дані</div>
+
+            <form method="POST" action="{% url 'account_signup' %}" class="signup-form">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                <div class="error-msg profile-errors">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <p><strong>{{ field.label }}:</strong> {{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="input-group">
+                    <input type="text" name="username" placeholder="Логін" required class="input-field" value="{{ form.username.value|default:'' }}">
+                </div>
+
+                <div class="input-group">
+                    <input type="email" name="email" placeholder="Ваш email" required class="input-field" value="{{ form.email.value|default:'' }}">
+                </div>
+
+                <div class="input-group">
+                    <input type="tel" name="phone_number" id="phone_signup" placeholder="+38 (0__) ___-__-__" required class="input-field" value="{{ form.phone_number.value|default:'' }}">
+                </div>
+
+                <div class="password-field">
+                    <input type="password" name="password1" placeholder="Пароль (мінімум 8 символів)" required class="input-field" data-password-input="true">
+                    <button type="button" class="password-toggle" data-password-toggle="true" aria-label="Показати пароль">👁</button>
+                </div>
+
+                <div class="password-field">
+                    <input type="password" name="password2" placeholder="Повторіть пароль" required class="input-field" data-password-input="true">
+                    <button type="button" class="password-toggle" data-password-toggle="true" aria-label="Показати пароль">👁</button>
+                </div>
+
+                <button type="submit" class="btn-primary btn-block">ЗАРЕЄСТРУВАТИСЯ</button>
+            </form>
+
+            <div class="auth-links-row">
+                <span class="auth-inline-note">Вже маєте акаунт? <a href="{% url 'account_login' %}" class="auth-link auth-link--pink">Увійти</a></span>
+            </div>
+        </div>
+    </div>
+
+    {% include 'includes/support_widget.html' %}
+
+    <script>
+        const phoneElement = document.getElementById('phone_signup');
+        if (phoneElement) {
+            const formatPhone = (value) => {
+                let digits = value.replace(/\D/g, '');
+                if (digits.startsWith('380')) {
+                    digits = digits.slice(0, 12);
+                } else if (digits.startsWith('0')) {
+                    digits = `38${digits.slice(0, 10)}`;
+                } else {
+                    digits = `38${digits}`.slice(0, 12);
+                }
+
+                let formatted = '+38';
+                if (digits.length > 2) {
+                    const rest = digits.slice(2);
+                    if (rest.length > 0) formatted += ` (${rest.slice(0, 3)}`;
+                    if (rest.length >= 3) formatted += ')';
+                    if (rest.length > 3) formatted += ` ${rest.slice(3, 6)}`;
+                    if (rest.length > 6) formatted += `-${rest.slice(6, 8)}`;
+                    if (rest.length > 8) formatted += `-${rest.slice(8, 10)}`;
+                }
+                return formatted;
+            };
+
+            phoneElement.addEventListener('input', () => {
+                phoneElement.value = formatPhone(phoneElement.value);
+            });
+
+            if (phoneElement.value) {
+                phoneElement.value = formatPhone(phoneElement.value);
+            }
+        }
+
+        document.querySelectorAll('[data-password-toggle="true"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const wrapper = button.closest('.password-field');
+                const input = wrapper?.querySelector('[data-password-input="true"]');
+                if (!input) return;
+                input.type = input.type === 'password' ? 'text' : 'password';
+                button.textContent = input.type === 'password' ? '👁' : '🙈';
+            });
+        });
+    </script>
+</body>
+</html>

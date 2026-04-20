@@ -1,0 +1,84 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Відповідальне споживання | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260417-9">
+</head>
+<body class="site-page info-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell page-shell--info">
+        <div class="container">
+            <div class="legal-shell">
+                <div class="legal-hero">
+                    <span class="legal-pill">Responsible use</span>
+                    <h1 class="legal-title">Відповідальне <span>споживання</span></h1>
+                    <p class="legal-subtitle">
+                        Правила безпечного та відповідального використання електронних сигарет і нікотиновмісної
+                        продукції. Сторінка побудована просто: що потрібно знати, чого дотримуватись і чому це важливо.
+                    </p>
+                </div>
+
+                <div class="responsible-grid">
+                    <div class="responsible-card">
+                        <span class="responsible-label">Основне правило</span>
+                        <h2>Продукція VapeLand призначена виключно для повнолітніх користувачів</h2>
+                        <p>
+                            Електронні сигарети, картриджі, рідини та супутні товари призначені лише для повнолітніх
+                            користувачів відповідно до вимог законодавства України у сфері охорони здоров'я.
+                        </p>
+                        <p>
+                            Продукція може містити нікотин — речовину, що викликає залежність. Саме тому ми
+                            рекомендуємо використовувати лише сертифіковану продукцію, дотримуватися інструкцій
+                            виробника та не допускати доступу дітей до пристроїв і рідин.
+                        </p>
+                        <p>
+                            Відповідальне користування означає усвідомлений вибір, правильне зберігання девайсів і
+                            суворе дотримання законодавчих вимог.
+                        </p>
+                        <div class="responsible-note">
+                            Відповідальне споживання — це <span class="responsible-highlight">свідомий вибір</span>,
+                            повага до власного здоров'я та до правил, що захищають інших.
+                        </div>
+                    </div>
+
+                    <div class="responsible-side-stack">
+                        <div class="responsible-side-card">
+                            <span class="responsible-label">Що важливо пам'ятати</span>
+                            <h3>Короткі правила використання</h3>
+                            <ul class="responsible-list">
+                                <li><span>Не передавайте пристрої та рідини неповнолітнім.</span></li>
+                                <li><span>Користуйтеся лише сертифікованою продукцією від перевірених виробників.</span></li>
+                                <li><span>Дотримуйтеся інструкцій щодо заряджання, використання та зберігання.</span></li>
+                                <li><span>Не залишайте рідини й пристрої у вільному доступі для дітей.</span></li>
+                            </ul>
+                        </div>
+
+                        <div class="responsible-side-card">
+                            <span class="responsible-label">Чому це важливо</span>
+                            <h3>Відповідальність користувача</h3>
+                            <p>
+                                Продукція для вейпінгу не є нейтральною за впливом і потребує усвідомленого ставлення.
+                                Саме тому законодавство окремо регулює продаж, маркування та обмеження доступу до
+                                нікотиновмісної продукції.
+                            </p>
+                            <p>
+                                Дотримання цих правил — не формальність, а базова вимога до безпечного користування та
+                                коректного ставлення до оточення.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>

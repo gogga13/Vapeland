@@ -1,0 +1,48 @@
+{% load static %}
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Завершення реєстрації | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260417-3">
+</head>
+<body class="auth-page">
+    <div class="glow-bg"></div>
+    <div class="container auth-container">
+        <div class="auth-card auth-card--auth animate-fade">
+            <a href="/" class="logo auth-card__logo">VAPE <span>LAND</span></a>
+            <p class="section-kicker">Finish signup</p>
+            <h1 class="auth-title">Майже <span>готово</span></h1>
+            <p class="auth-subtitle">Ви входите через Google. Оберіть ім'я користувача, щоб завершити створення акаунта.</p>
+
+            <form class="signup-form" id="signup_form" method="post" action="{% url 'socialaccount_signup' %}">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                <div class="error-msg">Перевірте правильність введених даних.</div>
+                {% endif %}
+
+                <div class="input-group">
+                    <label>Електронна пошта</label>
+                    <input type="email" name="email" value="{{ form.email.value|default:'' }}" class="input-field auth-readonly" placeholder="Email" readonly>
+                </div>
+
+                <div class="input-group">
+                    <label>Ім'я користувача</label>
+                    <input type="text" name="username" placeholder="Придумайте логін" required class="input-field">
+                </div>
+
+                <button type="submit" class="btn-primary btn-block">ЗАВЕРШИТИ РЕЄСТРАЦІЮ</button>
+            </form>
+
+            <div class="auth-links-row">
+                <a href="{% url 'home' %}" class="auth-link">Скасувати</a>
+            </div>
+        </div>
+    </div>
+
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>

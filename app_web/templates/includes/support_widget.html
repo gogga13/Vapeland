@@ -1,0 +1,52 @@
+<div class="support-widget" id="support-widget">
+    <button type="button" class="support-toggle" id="support-toggle" aria-expanded="false" aria-controls="support-panel">💬</button>
+    <div class="support-panel" id="support-panel">
+        <span class="support-panel__eyebrow">Підтримка VapeLand</span>
+        <h3>Потрібна допомога?</h3>
+        <p>Підкажемо по смаках, сумісності товарів, доставці та оформленню замовлення.</p>
+
+        {% if support_telegram_url or support_instagram_url %}
+        <div class="support-actions">
+            {% if support_telegram_url %}
+            <a href="{{ support_telegram_url }}" target="_blank" rel="noopener" class="support-link support-link--telegram">
+                Написати в Telegram
+            </a>
+            {% endif %}
+            {% if support_instagram_url %}
+            <a href="{{ support_instagram_url }}" target="_blank" rel="noopener" class="support-link support-link--instagram">
+                Перейти в Instagram
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if support_phone %}
+        <div class="support-phone">
+            Телефон: <a href="tel:{{ support_phone_href }}" class="support-handle">{{ support_phone }}</a>
+        </div>
+        {% elif not support_telegram_url and not support_instagram_url %}
+        <div class="support-phone">
+            Контакти підтримки оновлюються.
+        </div>
+        {% endif %}
+    </div>
+</div>
+<script>
+(function () {
+    const widget = document.getElementById("support-widget");
+    const toggle = document.getElementById("support-toggle");
+    if (!widget || !toggle) return;
+
+    toggle.addEventListener("click", function () {
+        const isOpen = widget.classList.toggle("is-open");
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+
+    document.addEventListener("click", function (event) {
+        if (!widget.contains(event.target)) {
+            widget.classList.remove("is-open");
+            toggle.setAttribute("aria-expanded", "false");
+        }
+    });
+})();
+</script>

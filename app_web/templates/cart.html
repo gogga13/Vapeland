@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кошик | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+</head>
+<body class="site-page cart-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell">
+        <div class="container">
+            <div class="page-head page-head--compact">
+                <div>
+                    <p class="section-kicker">Cart</p>
+                    <h1 class="section-title">Ваш <span>кошик</span></h1>
+                    <p class="section-copy">Перевіряйте склад замовлення, знижки та підсумок перед оформленням.</p>
+                </div>
+            </div>
+
+            {% if messages %}
+            <div class="messages-stack messages-stack--spaced">
+                {% for message in messages %}
+                <div class="message-chip">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if cart_items %}
+            <div class="order-layout order-layout--commerce">
+                <div class="auth-card auth-card--surface cart-items-card">
+                    {% for item in cart_items %}
+                    <article class="cart-item">
+                        <div class="cart-item-main">
+                            <img src="{{ item.image_url }}" alt="{{ item.product.name }}" class="cart-item-thumb">
+                            <div class="cart-item-copy">
+                                <h3 class="cart-item-title">{{ item.product.name }}</h3>
+                                <div class="cart-item-meta">
+                                    <span>Варіант: {{ item.variant_name }}</span>
+                                    {% if item.glycerin_price > 0 %}
+                                    <span>Гліцерин включено: {{ item.glycerin_price|floatformat:0 }} грн</span>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.has_discount %}
+                                <div class="cart-item-price-block">
+                                    <p class="cart-item-price-old">{{ item.quantity }} шт. × {{ item.original_unit_price|floatformat:0 }} грн</p>
+                                    <p class="cart-item-price-current">{{ item.quantity }} шт. × {{ item.unit_price|floatformat:0 }} грн</p>
+                                    <p class="cart-item-discount-label">
+                                        {% if item.discount_badge %}<span class="discount-badge discount-badge--mini">{{ item.discount_badge }}</span>{% endif %}
+                                        {{ item.discount_label }}
+                                    </p>
+                                </div>
+                                {% else %}
+                                <p class="cart-item-price-current">{{ item.quantity }} шт. × {{ item.unit_price|floatformat:0 }} грн</p>
+                                {% endif %}
+
+                                {% if item.stock_limited and not item.is_available %}
+                                <p class="cart-item-warning">Недостатньо залишку. Оформлення буде заблоковано, поки менеджер не оновить склад.</p>
+                                {% endif %}
+
+                                <div class="cart-item-actions">
+                                    <form method="post" action="{% url 'cart_update' %}" class="cart-qty-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cart_key" value="{{ item.cart_key }}">
+                                        <label class="cart-qty-form__label" for="qty-{{ forloop.counter }}">Кількість</label>
+                                        <input id="qty-{{ forloop.counter }}" type="number" name="quantity" value="{{ item.quantity }}" min="0" class="input-field cart-qty-input">
+                                        <button type="submit" class="btn-ghost">Оновити</button>
+                                    </form>
+                                    <form method="post" action="{% url 'cart_remove' %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="cart_key" value="{{ item.cart_key }}">
+                                        <button type="submit" class="btn-ghost btn-danger">Видалити</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cart-line-total">{{ item.total|floatformat:0 }} грн</div>
+                    </article>
+                    {% endfor %}
+                </div>
+
+                <aside class="auth-card auth-card--surface summary-card">
+                    <h3 class="summary-card__title">Підсумок замовлення</h3>
+                    <div class="summary-list">
+                        <div class="summary-row">
+                            <span>Сума товарів</span>
+                            <strong>{{ pricing.subtotal|floatformat:0 }} грн</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span>Акційні знижки на товари</span>
+                            <strong>{% if pricing.product_discount_total > 0 %}-{{ pricing.product_discount_total|floatformat:0 }} грн{% else %}0 грн{% endif %}</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span>{{ pricing.percent_label }}</span>
+                            <strong>{% if pricing.percent_discount > 0 %}-{{ pricing.percent_discount|floatformat:0 }} грн{% else %}0 грн{% endif %}</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span>Бонус до дня народження</span>
+                            <strong>Додається на етапі оформлення</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span>Доставка</span>
+                            <strong>{{ pricing.delivery_label }}</strong>
+                        </div>
+                        <div class="summary-row summary-row--total">
+                            <span>До сплати зараз</span>
+                            <strong>{{ pricing.final_total|floatformat:0 }} грн</strong>
+                        </div>
+                    </div>
+                    <p class="summary-note cart-summary-note">Бонус 150 грн на день народження можна активувати під час оформлення замовлення. Менеджер перевірить документи.</p>
+                    <div class="summary-actions">
+                        <a href="{% url 'checkout' %}" class="btn-primary btn-link-block">Перейти до оформлення</a>
+                        <a href="{% url 'discounts' %}" class="btn-ghost btn-link-block">Детально про знижки</a>
+                        <form method="post" action="{% url 'cart_clear' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-ghost btn-block">Очистити кошик</button>
+                        </form>
+                    </div>
+                </aside>
+            </div>
+            {% else %}
+            <div class="auth-card auth-card--surface cart-empty">
+                <h2>Кошик порожній</h2>
+                <p>Додайте товари до кошика, щоб побачити автоматичний розрахунок знижки та умови доставки.</p>
+                <div class="summary-actions summary-actions--inline">
+                    <a href="{% url 'catalog_page' %}" class="btn-primary">Повернутися до покупок</a>
+                    <a href="{% url 'discounts' %}" class="btn-ghost">Переглянути знижки</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>

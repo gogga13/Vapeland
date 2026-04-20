@@ -1,0 +1,71 @@
+{% load static %}
+{% load socialaccount %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вхід | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+</head>
+<body class="auth-page">
+    <div class="glow-bg"></div>
+    <div class="container auth-container">
+        <div class="auth-card auth-card--auth animate-fade">
+            <a href="/" class="logo auth-card__logo">VAPE <span>LAND</span></a>
+            <p class="section-kicker">Account access</p>
+            <h1 class="auth-title">Вхід у<br><span>акаунт</span></h1>
+            <p class="auth-subtitle">Увійдіть у свій профіль, щоб оформлювати замовлення швидше, бачити історію покупок і бонуси.</p>
+
+            {% if messages %}
+            <div class="messages-stack">
+                {% for message in messages %}
+                <div class="message-chip">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <a href="{% provider_login_url 'google' %}" class="auth-google-btn">
+                <img src="{% static 'images/google.png' %}" alt="Google">
+                <span>Увійти через Google</span>
+            </a>
+
+            <div class="divider-text auth-divider">або за логіном</div>
+
+            <form method="POST" action="{% url 'account_login' %}" class="signup-form">
+                {% csrf_token %}
+                {% if form.errors %}
+                <div class="error-msg">Невірний логін або пароль.</div>
+                {% endif %}
+                <div class="input-group">
+                    <input type="text" name="login" placeholder="Логін або email" required class="input-field">
+                </div>
+                <div class="password-field">
+                    <input type="password" name="password" placeholder="Пароль" required class="input-field" data-password-input="true">
+                    <button type="button" class="password-toggle" data-password-toggle="true" aria-label="Показати пароль">👁</button>
+                </div>
+                <button type="submit" class="btn-primary btn-block">УВІЙТИ</button>
+            </form>
+
+            <div class="auth-links-row">
+                <a href="{% url 'password_reset_request' %}" class="auth-link auth-link--cyan">Забули пароль?</a>
+                <span class="auth-inline-note">Немає акаунта? <a href="{% url 'account_signup' %}" class="auth-link auth-link--pink">Зареєструватися</a></span>
+            </div>
+        </div>
+    </div>
+
+    {% include 'includes/support_widget.html' %}
+
+    <script>
+        document.querySelectorAll('[data-password-toggle="true"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const wrapper = button.closest('.password-field');
+                const input = wrapper?.querySelector('[data-password-input="true"]');
+                if (!input) return;
+                input.type = input.type === 'password' ? 'text' : 'password';
+                button.textContent = input.type === 'password' ? '👁' : '🙈';
+            });
+        });
+    </script>
+</body>
+</html>

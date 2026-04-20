@@ -1,0 +1,30 @@
+{% load static %}
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Підтвердження входу | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260417-3">
+</head>
+<body class="auth-page">
+    <div class="glow-bg"></div>
+    <div class="container auth-container">
+        <div class="auth-card auth-card--auth animate-fade">
+            <a href="/" class="logo auth-card__logo">VAPE <span>LAND</span></a>
+            <p class="section-kicker">Google sign in</p>
+            <h1 class="auth-title">Вхід через <span>Google</span></h1>
+            <p class="auth-subtitle">Ви збираєтеся увійти за допомогою акаунта Google. Продовжити?</p>
+
+            <form method="post" class="auth-action-stack">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary btn-block">ТАК, ПРОДОВЖИТИ</button>
+                <a href="{% url 'home' %}" class="btn-ghost btn-link-block">СКАСУВАТИ</a>
+            </form>
+        </div>
+    </div>
+
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>

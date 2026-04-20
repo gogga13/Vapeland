@@ -1,0 +1,110 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Замовлення прийнято | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+</head>
+<body class="site-page success-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell success-shell">
+        <div class="container">
+            <div class="success-panel">
+                <div class="success-hero">
+                    <div class="success-checkmark" aria-hidden="true">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5 13L9 17L19 7" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <p class="section-kicker">Order confirmed</p>
+                    <h1 class="section-title success-title">Дякуємо за <span>замовлення</span></h1>
+                    <p class="success-copy">
+                        Замовлення №{{ order.id }} прийнято. Менеджер зв'яжеться з вами найближчим часом, щоб підтвердити
+                        доставку, наявність варіантів та фінальні деталі.
+                    </p>
+
+                    <div class="success-meta">
+                        <div class="success-meta-card">
+                            <span class="success-meta-label">Номер</span>
+                            <strong>#{{ order.id }}</strong>
+                        </div>
+                        <div class="success-meta-card">
+                            <span class="success-meta-label">Статус</span>
+                            <strong>{{ order.get_status_display }}</strong>
+                        </div>
+                        <div class="success-meta-card">
+                            <span class="success-meta-label">Оформлено</span>
+                            <strong>{{ order.created_at|date:"d.m.Y H:i" }}</strong>
+                        </div>
+                        <div class="success-meta-card">
+                            <span class="success-meta-label">До сплати</span>
+                            <strong>{{ order.total_price|floatformat:0 }} грн</strong>
+                        </div>
+                    </div>
+
+                    <div class="success-actions">
+                        <a href="{% url 'catalog_page' %}" class="btn-primary">Продовжити покупки</a>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'orders_page' %}" class="btn-ghost">Мої замовлення</a>
+                        {% endif %}
+                        <a href="{% url 'home' %}" class="btn-ghost">На головну</a>
+                    </div>
+                </div>
+
+                <aside class="success-summary">
+                    <div class="success-summary__section">
+                        <span class="success-summary__label">Покупець</span>
+                        <h2>{{ order.first_name }} {{ order.last_name }}</h2>
+                        <p>{{ order.phone }}</p>
+                        <p>{{ order.city }}, {{ order.address }}</p>
+                    </div>
+
+                    <div class="success-summary__section">
+                        <span class="success-summary__label">Склад замовлення</span>
+                        <div class="success-items">
+                            {% for item in order.items.all %}
+                            <article class="success-item">
+                                <div>
+                                    <strong>{{ item.product_name }}</strong>
+                                    <p>{{ item.variant_name }} × {{ item.quantity }}</p>
+                                </div>
+                                <span>{{ item.line_total|floatformat:0 }} грн</span>
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="success-summary__section success-summary__section--totals">
+                        <div class="success-total-row">
+                            <span>Сума товарів</span>
+                            <strong>{{ order.subtotal_price|floatformat:0 }} грн</strong>
+                        </div>
+                        <div class="success-total-row">
+                            <span>Знижка</span>
+                            <strong>{% if order.discount_amount > 0 %}-{{ order.discount_amount|floatformat:0 }} грн{% else %}0 грн{% endif %}</strong>
+                        </div>
+                        <div class="success-total-row success-total-row--grand">
+                            <span>Фінальна сума</span>
+                            <strong>{{ order.total_price|floatformat:0 }} грн</strong>
+                        </div>
+                        {% if order.discount_label %}
+                        <p class="success-summary__note">{{ order.discount_label }}</p>
+                        {% endif %}
+                        {% if order.comment %}
+                        <p class="success-summary__note">Коментар до замовлення: {{ order.comment }}</p>
+                        {% endif %}
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>

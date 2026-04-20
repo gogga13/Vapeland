@@ -1,0 +1,497 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мій профіль | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260419-1">
+</head>
+<body class="site-page profile-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell">
+        <div class="container">
+            <div class="page-head page-head--compact">
+                <div>
+                    <p class="section-kicker">Account</p>
+                    <h1 class="section-title">Особистий<br><span>кабінет</span></h1>
+                    <p class="section-copy">Оновлюйте контактні дані, адресу доставки та дату народження для бонусу й швидкого оформлення замовлень.</p>
+                </div>
+            </div>
+
+            <div class="auth-card auth-card--surface profile-card">
+                <p class="profile-card__user">Клієнт: {{ user.username }}</p>
+
+                {% if messages %}
+                <div class="messages-stack">
+                    {% for message in messages %}
+                    <div class="message-chip">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if form.errors %}
+                <div class="error-msg profile-errors">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <p>{{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="POST" autocomplete="off">
+                    {% csrf_token %}
+
+                    <div class="profile-grid">
+                        <div class="input-group input-group--np" data-np-group="city">
+                            <label>{{ form.first_name.label }}</label>
+                            {{ form.first_name }}
+                        </div>
+                        <div class="input-group">
+                            <label>{{ form.last_name.label }}</label>
+                            {{ form.last_name }}
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>{{ form.patronymic.label }}</label>
+                        {{ form.patronymic }}
+                    </div>
+
+                    <div class="input-group">
+                        <label>{{ form.email.label }}</label>
+                        {{ form.email }}
+                    </div>
+
+                    <div class="profile-grid">
+                        <div class="input-group">
+                            <label>{{ form.phone.label }}</label>
+                            {{ form.phone }}
+                        </div>
+                        <div class="input-group">
+                            <label>{{ form.birth_date.label }}</label>
+                            <input
+                                type="date"
+                                name="birth_date"
+                                id="id_birth_date"
+                                class="input-field"
+                                value="{% if form.is_bound %}{{ form.data.birth_date }}{% else %}{{ form.instance.birth_date|date:'Y-m-d' }}{% endif %}"
+                            >
+                            {% if form.birth_date.errors %}
+                            <div class="field-errors">
+                                {% for error in form.birth_date.errors %}
+                                <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="profile-grid">
+                        <div class="input-group">
+                            <label>{{ form.city.label }}</label>
+                            <div class="np-autocomplete-shell">
+                                {{ form.city }}
+                                <div id="city-results" class="np-results" role="listbox" aria-label="Міста Нової Пошти"></div>
+                            </div>
+                            <div id="city-selection" class="np-selection" aria-live="polite"></div>
+                            <div class="np-hint">Почніть вводити назву міста та оберіть потрібний варіант зі списку.</div>
+                        </div>
+                        <div class="input-group input-group--np" data-np-group="warehouse">
+                            <label>{{ form.address.label }}</label>
+                            <div class="np-autocomplete-shell">
+                                {{ form.address }}
+                                <div id="warehouse-results" class="np-results" role="listbox" aria-label="Відділення Нової Пошти"></div>
+                            </div>
+                            <div id="warehouse-selection" class="np-selection" aria-live="polite"></div>
+                            <div class="np-hint">Після вибору міста знайдіть відділення або поштомат Нової Пошти.</div>
+                        </div>
+                    </div>
+
+                    <p class="summary-note">Дата народження потрібна для автоматичної перевірки бонусу 150 грн саме в день народження.</p>
+
+                    <div class="profile-actions">
+                        <button type="submit" class="btn-primary btn-block">ЗБЕРЕГТИ ЗМІНИ</button>
+                        <a href="{% url 'orders_page' %}" class="btn-ghost btn-link-block">МОЇ ЗАМОВЛЕННЯ</a>
+                    </div>
+                </form>
+
+                <form method="post" action="{% url 'account_logout' %}" class="profile-logout-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-ghost btn-block">ВИЙТИ</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const cityInput = document.getElementById('id_city');
+            const warehouseInput = document.getElementById('id_address');
+            const cityResults = document.getElementById('city-results');
+            const warehouseResults = document.getElementById('warehouse-results');
+            const cityGroup = document.querySelector('[data-np-group="city"]');
+            const warehouseGroup = document.querySelector('[data-np-group="warehouse"]');
+            const citySelection = document.getElementById('city-selection');
+            const warehouseSelection = document.getElementById('warehouse-selection');
+            const citiesUrl = "{% url 'search_np_cities' %}";
+            const warehousesUrl = "{% url 'search_np_warehouses' %}";
+
+            let selectedCityRef = '';
+
+            const fetchJson = (url) => fetch(url, { credentials: 'same-origin' }).then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            });
+
+            const resolveCityRefByName = (cityName) => {
+                const normalized = (cityName || '').trim();
+                if (normalized.length < 2) {
+                    return Promise.resolve('');
+                }
+
+                return fetchJson(`${citiesUrl}?q=${encodeURIComponent(normalized)}`)
+                    .then((data) => {
+                        const exactMatch = (data.results || []).find((item) => item.name.toLowerCase() === normalized.toLowerCase());
+                        return exactMatch ? exactMatch.ref : '';
+                    })
+                    .catch(() => '');
+            };
+
+            const hideSelection = (selectionNode) => {
+                if (!selectionNode) {
+                    return;
+                }
+                selectionNode.innerHTML = '';
+                selectionNode.classList.remove('is-visible');
+            };
+
+            const showSelection = (selectionNode, item, prefix) => {
+                if (!selectionNode || !item?.name) {
+                    return;
+                }
+
+                selectionNode.innerHTML = `
+                    <span class="np-selection__label">${prefix}</span>
+                    <strong>${item.name}</strong>
+                    ${item.meta ? `<span>${item.meta}</span>` : ''}
+                `;
+                selectionNode.classList.add('is-visible');
+            };
+
+            const setSelectedGroupState = (groupNode, isSelected) => {
+                if (!groupNode) {
+                    return;
+                }
+                groupNode.classList.toggle('is-selected', Boolean(isSelected));
+            };
+
+            const setGroupOpenState = (groupNode, isOpen) => {
+                if (!groupNode) {
+                    return;
+                }
+                groupNode.classList.toggle('is-open', Boolean(isOpen));
+            };
+
+            const setGroupLoadingState = (groupNode, isLoading) => {
+                if (!groupNode) {
+                    return;
+                }
+                groupNode.classList.toggle('is-loading', Boolean(isLoading));
+            };
+
+            const createAutocomplete = ({
+                input,
+                dropdown,
+                group,
+                selection,
+                fetchItems,
+                onSelect,
+                onInputReset,
+                emptyMessage,
+                loadingMessage,
+                minLength = 0,
+                selectionPrefix,
+                searchOnFocus = true,
+            }) => {
+                let activeIndex = -1;
+                let items = [];
+                let timer = null;
+                let requestId = 0;
+
+                const close = () => {
+                    items = [];
+                    activeIndex = -1;
+                    dropdown.innerHTML = '';
+                    dropdown.classList.remove('is-open');
+                    input.setAttribute('aria-expanded', 'false');
+                    setGroupOpenState(group, false);
+                    setGroupLoadingState(group, false);
+                };
+
+                const open = () => {
+                    dropdown.classList.add('is-open');
+                    input.setAttribute('aria-expanded', 'true');
+                    setGroupOpenState(group, true);
+                };
+
+                const renderEmpty = (message) => {
+                    dropdown.innerHTML = `<div class="np-results__status">${message}</div>`;
+                    activeIndex = -1;
+                    open();
+                };
+
+                const setActive = (index) => {
+                    activeIndex = index;
+                    Array.from(dropdown.querySelectorAll('.np-item')).forEach((node, nodeIndex) => {
+                        const isActive = nodeIndex === activeIndex;
+                        node.classList.toggle('is-active', isActive);
+                        node.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                        if (isActive) {
+                            node.scrollIntoView({ block: 'nearest' });
+                        }
+                    });
+                };
+
+                const render = (list) => {
+                    items = list;
+                    dropdown.innerHTML = '';
+
+                    if (!items.length) {
+                        renderEmpty(emptyMessage);
+                        return;
+                    }
+
+                    const fragment = document.createDocumentFragment();
+                    items.forEach((item, index) => {
+                        const option = document.createElement('button');
+                        option.type = 'button';
+                        option.className = 'np-item';
+                        option.setAttribute('role', 'option');
+                        option.setAttribute('aria-selected', 'false');
+                        option.innerHTML = `
+                            <span class="np-item__title">${item.name}</span>
+                            ${item.meta ? `<span class="np-item__meta">${item.meta}</span>` : ''}
+                        `;
+                        option.addEventListener('mouseenter', () => setActive(index));
+                        option.addEventListener('mousedown', (event) => event.preventDefault());
+                        option.addEventListener('click', () => {
+                            onSelect(item);
+                            showSelection(selection, item, selectionPrefix);
+                            setSelectedGroupState(group, true);
+                            close();
+                        });
+                        fragment.appendChild(option);
+                    });
+
+                    dropdown.appendChild(fragment);
+                    open();
+                    setActive(0);
+                };
+
+                const runSearch = async (query) => {
+                    const normalized = (query || '').trim();
+                    if (normalized.length < minLength) {
+                        close();
+                        return;
+                    }
+
+                    requestId += 1;
+                    const currentRequest = requestId;
+                    setGroupLoadingState(group, true);
+                    dropdown.innerHTML = `<div class="np-results__status">${loadingMessage}</div>`;
+                    open();
+
+                    try {
+                        const list = await fetchItems(normalized);
+                        if (currentRequest !== requestId) {
+                            return;
+                        }
+                        if (list === null) {
+                            setGroupLoadingState(group, false);
+                            return;
+                        }
+                        setGroupLoadingState(group, false);
+                        render(list);
+                    } catch (error) {
+                        if (currentRequest !== requestId) {
+                            return;
+                        }
+                        setGroupLoadingState(group, false);
+                        renderEmpty('Не вдалося завантажити список. Спробуйте ще раз.');
+                    }
+                };
+
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('aria-haspopup', 'listbox');
+                input.setAttribute('aria-expanded', 'false');
+
+                input.addEventListener('focus', () => {
+                    if (!searchOnFocus) {
+                        return;
+                    }
+                    const value = input.value.trim();
+                    if (value.length >= minLength) {
+                        runSearch(value);
+                    }
+                });
+
+                input.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    onInputReset?.();
+                    setSelectedGroupState(group, false);
+                    hideSelection(selection);
+
+                    const value = input.value.trim();
+                    if (value.length < minLength) {
+                        close();
+                        return;
+                    }
+
+                    timer = setTimeout(() => runSearch(value), 180);
+                });
+
+                input.addEventListener('keydown', (event) => {
+                    if (!dropdown.classList.contains('is-open')) {
+                        if (event.key === 'ArrowDown' && input.value.trim().length >= minLength) {
+                            event.preventDefault();
+                            runSearch(input.value.trim());
+                        }
+                        return;
+                    }
+
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        setActive(Math.min(activeIndex + 1, items.length - 1));
+                    } else if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        setActive(Math.max(activeIndex - 1, 0));
+                    } else if (event.key === 'Enter') {
+                        if (activeIndex >= 0 && items[activeIndex]) {
+                            event.preventDefault();
+                            onSelect(items[activeIndex]);
+                            showSelection(selection, items[activeIndex], selectionPrefix);
+                            setSelectedGroupState(group, true);
+                            close();
+                        }
+                    } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        close();
+                    }
+                });
+
+                return {
+                    close,
+                    search: runSearch,
+                    setSelected: (item) => {
+                        showSelection(selection, item, selectionPrefix);
+                        setSelectedGroupState(group, true);
+                    },
+                    renderPrompt: (message) => {
+                        renderEmpty(message);
+                    },
+                };
+            };
+
+            const cityAutocomplete = createAutocomplete({
+                input: cityInput,
+                dropdown: cityResults,
+                group: cityGroup,
+                selection: citySelection,
+                minLength: 2,
+                emptyMessage: 'Місто не знайдено. Спробуйте іншу назву.',
+                loadingMessage: 'Шукаємо міста Нової Пошти...',
+                selectionPrefix: 'Обране місто',
+                fetchItems: (query) => fetchJson(`${citiesUrl}?q=${encodeURIComponent(query)}`).then((data) => data.results || []),
+                onInputReset: () => {
+                    selectedCityRef = '';
+                    warehouseInput.value = '';
+                    hideSelection(warehouseSelection);
+                    setSelectedGroupState(warehouseGroup, false);
+                    warehouseAutocomplete.close();
+                },
+                onSelect: (item) => {
+                    cityInput.value = item.name;
+                    selectedCityRef = item.ref;
+                    warehouseInput.value = '';
+                    hideSelection(warehouseSelection);
+                    setSelectedGroupState(warehouseGroup, false);
+                    warehouseInput.focus();
+                },
+            });
+
+            const warehouseAutocomplete = createAutocomplete({
+                input: warehouseInput,
+                dropdown: warehouseResults,
+                group: warehouseGroup,
+                selection: warehouseSelection,
+                minLength: 0,
+                emptyMessage: 'Відділення або поштомат не знайдено.',
+                loadingMessage: 'Завантажуємо відділення...',
+                selectionPrefix: 'Обране відділення',
+                searchOnFocus: false,
+                fetchItems: async (query) => {
+                    if (!selectedCityRef && cityInput.value.trim()) {
+                        selectedCityRef = await resolveCityRefByName(cityInput.value);
+                    }
+                    if (!selectedCityRef) {
+                        warehouseAutocomplete.renderPrompt('Спочатку оберіть місто зі списку.');
+                        return null;
+                    }
+                    const url = `${warehousesUrl}?city_ref=${encodeURIComponent(selectedCityRef)}&q=${encodeURIComponent(query)}`;
+                    const data = await fetchJson(url);
+                    return data.results || [];
+                },
+                onSelect: (item) => {
+                    warehouseInput.value = item.name;
+                },
+            });
+
+            warehouseInput?.addEventListener('focus', async () => {
+                if (!selectedCityRef && cityInput.value.trim()) {
+                    selectedCityRef = await resolveCityRefByName(cityInput.value);
+                }
+                if (!selectedCityRef) {
+                    warehouseAutocomplete.renderPrompt('Спочатку оберіть місто зі списку.');
+                    return;
+                }
+                warehouseAutocomplete.search(warehouseInput.value.trim());
+            });
+
+            document.addEventListener('click', (event) => {
+                if (cityGroup && !cityGroup.contains(event.target)) {
+                    cityAutocomplete.close();
+                }
+                if (warehouseGroup && !warehouseGroup.contains(event.target)) {
+                    warehouseAutocomplete.close();
+                }
+            });
+
+            if (cityInput?.value.trim()) {
+                resolveCityRefByName(cityInput.value).then((ref) => {
+                    if (ref) {
+                        selectedCityRef = ref;
+                        cityAutocomplete.setSelected({ name: cityInput.value.trim(), meta: 'Поточне місто доставки' });
+                    }
+                });
+            }
+
+            if (warehouseInput?.value.trim()) {
+                warehouseAutocomplete.setSelected({ name: warehouseInput.value.trim(), meta: 'Поточне відділення доставки' });
+            }
+        });
+    </script>
+</body>
+</html>

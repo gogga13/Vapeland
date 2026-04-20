@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Умови знижок | VapeLand</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260417-12">
+</head>
+<body class="site-page">
+    <div class="glow-bg"></div>
+
+    {% include 'includes/site_header.html' %}
+
+    <section class="page-shell">
+        <div class="container">
+            <div class="page-head">
+                <div>
+                    <p class="section-kicker">VapeLand Benefits</p>
+                    <h1 class="section-title">Умови <span>знижок</span></h1>
+                    <p class="section-copy">Офіційні правила по знижках, бонусу до дня народження та доставці. Саме ці умови використовуються в кошику, на сторінці оформлення і в повідомленні менеджеру.</p>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <span class="footer-label">ЗНИЖКА НА ЧЕК</span>
+                    <strong>від 550 до 1050 грн</strong>
+                    <p>Автоматично застосовується <strong>знижка 3%</strong> на весь чек.</p>
+                </div>
+                <div class="info-card">
+                    <span class="footer-label">ЗНИЖКА НА ЧЕК</span>
+                    <strong>від 1050 грн</strong>
+                    <p>Автоматично застосовується <strong>знижка 5%</strong> на весь чек.</p>
+                </div>
+                <div class="info-card">
+                    <span class="footer-label">ДЕНЬ НАРОДЖЕННЯ</span>
+                    <strong>Бонус 150 грн</strong>
+                    <p>Бонус 150 грн діє <strong>тільки в день народження</strong>. Менеджер обов'язково перевіряє документи.</p>
+                </div>
+                <div class="info-card">
+                    <span class="footer-label">ДОСТАВКА</span>
+                    <strong>Безкоштовно</strong>
+                    <p>По <strong>м. Миколаїв</strong> доставка безкоштовна на будь-яку суму. По Україні доставка безкоштовна від <strong>1050 грн</strong>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% include 'includes/site_footer.html' %}
+    {% include 'includes/support_widget.html' %}
+</body>
+</html>
