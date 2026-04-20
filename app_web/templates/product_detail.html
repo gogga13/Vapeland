@@ -1,4 +1,4 @@
-{% load static %}
+﻿{% load static %}
 {% load ui_filters %}
 <!DOCTYPE html>
 <html lang="uk">
@@ -186,41 +186,6 @@
             </div>
         </div>
     </section>
-
-    {% if product_nav_categories or product_nav_subcategories or product_nav_brands %}
-    <section class="section section--tight container">
-        <div class="section-header section-header--compact">
-            <div>
-                <p class="section-kicker">Навігація</p>
-                <h2 class="section-title section-title--compact">Швидко до <span>категорій і брендів</span></h2>
-            </div>
-        </div>
-
-        <div class="scroll-rail scroll-rail--chips" data-scroll-rail>
-            <button type="button" class="scroll-rail__arrow" data-scroll-prev aria-label="Прокрутити ліворуч">‹</button>
-            <div class="scroll-rail__viewport scroll-rail__viewport--chips" data-scroll-viewport>
-                {% for category in product_nav_categories %}
-                <a href="{% url 'catalog_page' %}?category={{ category.id }}" class="rail-chip{% if product.catalog_category and product.catalog_category.id == category.id %} is-active{% endif %}">
-                    {{ category.name }}
-                </a>
-                {% endfor %}
-
-                {% for child in product_nav_subcategories %}
-                <a href="{% url 'catalog_page' %}?category={{ child.parent_id }}&subcategory={{ child.id }}" class="rail-chip rail-chip--ghost{% if product.catalog_subcategory and product.catalog_subcategory.id == child.id %} is-active{% endif %}">
-                    {{ child.name }}
-                </a>
-                {% endfor %}
-
-                {% for brand in product_nav_brands|slice:":14" %}
-                <a href="{% url 'catalog_page' %}?{% if product.catalog_category %}category={{ product.catalog_category.id }}&{% endif %}brand={{ brand.slug }}" class="rail-chip rail-chip--brand{% if product.brand_ref and product.brand_ref.id == brand.id %} is-active{% endif %}">
-                    {{ brand.name }}
-                </a>
-                {% endfor %}
-            </div>
-            <button type="button" class="scroll-rail__arrow" data-scroll-next aria-label="Прокрутити праворуч">›</button>
-        </div>
-    </section>
-    {% endif %}
 
     <section class="section container">
         <div class="section-header">

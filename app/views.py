@@ -1167,18 +1167,6 @@ def product_detail(request, slug):
     attach_product_taxonomy(compatible)
     attach_product_taxonomy(similar)
     product_specs = build_product_specs(product)
-    product_nav_categories = list(Category.objects.filter(parent__isnull=True).prefetch_related("children").order_by("name"))
-    for category in product_nav_categories:
-        category.sidebar_children = list(category.children.order_by("name"))
-    product_nav_subcategories = []
-    product_nav_brands = []
-    if product.catalog_category:
-        product_nav_subcategories = list(product.catalog_category.children.order_by("name"))
-        product_nav_brands = list(
-            Brand.objects.filter(products__is_active=True, categories=product.catalog_category)
-            .order_by("name")
-            .distinct()
-        )
     approved_reviews = product.reviews.filter(is_approved=True).select_related("user")
     review_stats = approved_reviews.aggregate(avg=Avg("rating"), count=Count("id"))
     product_brand = product.brand_ref
@@ -1209,9 +1197,6 @@ def product_detail(request, slug):
             "compatible": compatible,
             "similar": similar,
             "product_specs": product_specs,
-            "product_nav_categories": product_nav_categories,
-            "product_nav_subcategories": product_nav_subcategories,
-            "product_nav_brands": product_nav_brands,
             "reviews": approved_reviews,
             "review_average": review_stats["avg"] or 0,
             "review_count": review_stats["count"] or 0,
