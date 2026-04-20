@@ -1,5 +1,6 @@
 ﻿from pathlib import Path
 import os
+import sys
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -61,6 +62,17 @@ def env_path(name, default):
     return Path(value).expanduser()
 
 
+def merge_unique(values, extras):
+    merged = []
+    seen = set()
+    for value in [*values, *extras]:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        merged.append(value)
+    return merged
+
+
 def has_real_email_credentials(username, password):
     username = (username or "").strip().lower()
     password = (password or "").strip()
@@ -93,11 +105,25 @@ def secret_key_is_placeholder(value):
 
 
 SECRET_KEY = env_str("DJANGO_SECRET_KEY", "django-insecure-change-me")
-DEBUG = env_bool("DJANGO_DEBUG", default=False)
+RUNNING_DEV_SERVER = any(arg.startswith("runserver") for arg in sys.argv)
+DEBUG = env_bool("DJANGO_DEBUG", default=False) or RUNNING_DEV_SERVER
 
 default_allowed_hosts = "127.0.0.1,localhost,testserver" if DEBUG else ""
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", default_allowed_hosts)
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+ALLOWED_HOSTS = merge_unique(
+    env_list("DJANGO_ALLOWED_HOSTS", default_allowed_hosts),
+    ["127.0.0.1", "localhost", "testserver"],
+)
+CSRF_TRUSTED_ORIGINS = merge_unique(
+    env_list("DJANGO_CSRF_TRUSTED_ORIGINS", ""),
+    [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "https://127.0.0.1:8000",
+        "https://localhost:8000",
+    ]
+    if RUNNING_DEV_SERVER
+    else [],
+)
 
 if not DEBUG and secret_key_is_placeholder(SECRET_KEY):
     raise ImproperlyConfigured(
@@ -266,15 +292,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = not RUNNING_DEV_SERVER
+    CSRF_COOKIE_SECURE = not RUNNING_DEV_SERVER
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = env_str("DJANGO_SESSION_COOKIE_SAMESITE", "Lax")
     CSRF_COOKIE_SAMESITE = env_str("DJANGO_CSRF_COOKIE_SAMESITE", "Lax")
-    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "31536000"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+    SECURE_HSTS_SECONDS = 0 if RUNNING_DEV_SERVER else int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = not RUNNING_DEV_SERVER
+    SECURE_HSTS_PRELOAD = not RUNNING_DEV_SERVER
+    SECURE_SSL_REDIRECT = False if RUNNING_DEV_SERVER else env_bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = env_str("DJANGO_SECURE_REFERRER_POLICY", "same-origin")
     X_FRAME_OPTIONS = "DENY"
