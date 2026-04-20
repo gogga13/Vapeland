@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Каталог | VapeLand</title>
-    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260420-1">
 </head>
 <body class="site-page catalog-page">
     <div id="loginModal" class="modal">
@@ -32,20 +32,8 @@
             <div class="page-head page-head--compact">
                 <div>
                     <p class="section-kicker">Каталог</p>
-                    <h1 class="section-title">
-                        {% if selected_category %}
-                            {{ selected_category.name }}
-                        {% else %}
-                            Усі <span>товари</span>
-                        {% endif %}
-                    </h1>
-                    <p class="section-copy">
-                        {% if search_query %}
-                        Показані товари за запитом "{{ search_query }}".
-                        {% else %}
-                        Обирайте актуальні позиції VapeLand і додавайте їх у кошик без зайвих кроків.
-                        {% endif %}
-                    </p>
+                    <h1 class="section-title">{{ page_title }}</h1>
+                    <p class="section-copy">{{ page_description }}</p>
                 </div>
                 <div class="catalog-filter-note">{{ products_total }} товарів</div>
             </div>
@@ -56,26 +44,87 @@
                         <span class="section-kicker">VapeLand</span>
                         <h2>Категорії товарів</h2>
                     </div>
+
                     <div class="catalog-sidebar-links">
-                        <a href="{% url 'catalog_page' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-link {% if not selected_category %}is-active{% endif %}">
+                        <a href="{% url 'catalog_page' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-link {% if not selected_category and not selected_subcategory and not selected_brand %}is-active{% endif %}">
                             Усі товари
                         </a>
+
                         {% for category in categories %}
+                        {% if category.sidebar_has_nested %}
+                        <div class="catalog-sidebar-accordion{% if category.sidebar_open %} is-open{% endif %}">
+                            <button
+                                type="button"
+                                class="catalog-sidebar-link catalog-sidebar-link--accordion {% if category.sidebar_open %}is-active{% endif %}"
+                                data-catalog-accordion-toggle
+                                aria-expanded="{% if category.sidebar_open %}true{% else %}false{% endif %}"
+                                aria-controls="catalog-accordion-{{ category.id }}"
+                            >
+                                <span>{{ category.name }}</span>
+                                <span class="catalog-sidebar-chevron" aria-hidden="true"></span>
+                            </button>
+
+                            <div
+                                id="catalog-accordion-{{ category.id }}"
+                                class="catalog-sidebar-panel{% if category.sidebar_open %} is-open{% endif %}"
+                                data-catalog-accordion-panel
+                            >
+                                <a href="{% url 'catalog_page' %}?category={{ category.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-panel-link {% if selected_category and selected_category.id == category.id and not selected_subcategory and not selected_brand %}is-active{% endif %}">
+                                    Усі товари категорії
+                                </a>
+
+                                {% if category.sidebar_children %}
+                                <div class="catalog-sidebar-group">
+                                    <span class="catalog-sidebar-group__label">Підкатегорії</span>
+                                    <div class="catalog-sidebar-children">
+                                        {% for child in category.sidebar_children %}
+                                        <a href="{% url 'catalog_page' %}?category={{ category.id }}&subcategory={{ child.id }}{% if selected_brand %}&brand={{ selected_brand.slug }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-chip {% if selected_subcategory and selected_subcategory.id == child.id %}is-active{% endif %}">
+                                            {{ child.name }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if category.sidebar_brands %}
+                                <div class="catalog-sidebar-group">
+                                    <span class="catalog-sidebar-group__label">Бренди</span>
+                                    <div class="catalog-sidebar-children catalog-sidebar-children--brands">
+                                        {% for brand in category.sidebar_brands %}
+                                        <a href="{% url 'catalog_page' %}?category={{ category.id }}&brand={{ brand.slug }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-chip {% if selected_brand and selected_brand.id == brand.id %}is-active{% endif %}">
+                                            {{ brand.name }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% else %}
                         <a href="{% url 'catalog_page' %}?category={{ category.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="catalog-sidebar-link {% if selected_category and selected_category.id == category.id %}is-active{% endif %}">
                             {{ category.name }}
                         </a>
-                        {% if category.children.all %}
-                        <div class="catalog-sidebar-children">
-                            {% for child in category.children.all|slice:':4' %}
-                            <span>{{ child.name }}</span>
-                            {% endfor %}
-                        </div>
                         {% endif %}
                         {% endfor %}
                     </div>
                 </aside>
 
                 <div class="catalog-products-panel">
+                    {% if selected_subcategory or selected_brand or search_query %}
+                    <div class="catalog-active-filters">
+                        {% if selected_subcategory %}
+                        <span class="catalog-active-chip">{{ selected_subcategory.name }}</span>
+                        {% endif %}
+                        {% if selected_brand %}
+                        <span class="catalog-active-chip">{{ selected_brand.name }}</span>
+                        {% endif %}
+                        {% if search_query %}
+                        <span class="catalog-active-chip">{{ search_query }}</span>
+                        {% endif %}
+                        <a href="{% url 'catalog_page' %}{% if selected_category %}?category={{ selected_category.id }}{% endif %}" class="catalog-active-reset">Скинути фільтри</a>
+                    </div>
+                    {% endif %}
+
                     <div class="product-grid">
                         {% for product in products %}
                         <div class="product-card animate-fade">
@@ -91,7 +140,13 @@
                                     {% endif %}
                                 </div>
                                 <div class="card-body">
-                                    <span class="card-category">{{ product.category.name }}</span>
+                                    <span class="card-category">
+                                        {% if product.catalog_subcategory %}
+                                            {{ product.catalog_category.name }} • {{ product.catalog_subcategory.name }}
+                                        {% else %}
+                                            {{ product.catalog_category.name|default:product.category.name }}
+                                        {% endif %}
+                                    </span>
                                     <h3 class="card-name">{{ product.name }}</h3>
                                     {% if product.discount_data.has_discount %}
                                     <div class="price-stack">
@@ -128,11 +183,11 @@
                     {% if page_obj and page_obj.paginator.num_pages > 1 %}
                     <div class="catalog-pagination">
                         {% if page_obj.has_previous %}
-                        <a href="?page={{ page_obj.previous_page_number }}{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="btn-ghost">Назад</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if selected_subcategory %}&subcategory={{ selected_subcategory.id }}{% endif %}{% if selected_brand %}&brand={{ selected_brand.slug }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="btn-ghost">Назад</a>
                         {% endif %}
                         <span class="catalog-pagination__status">Сторінка {{ page_obj.number }} з {{ page_obj.paginator.num_pages }}</span>
                         {% if page_obj.has_next %}
-                        <a href="?page={{ page_obj.next_page_number }}{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="btn-ghost">Далі</a>
+                        <a href="?page={{ page_obj.next_page_number }}{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if selected_subcategory %}&subcategory={{ selected_subcategory.id }}{% endif %}{% if selected_brand %}&brand={{ selected_brand.slug }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="btn-ghost">Далі</a>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -150,6 +205,139 @@
             const btns = document.querySelectorAll('.nav-cta');
             const span = document.querySelector('.close-modal');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            const initCatalogAccordion = () => {
+                const accordions = document.querySelectorAll('.catalog-sidebar-accordion');
+                if (!accordions.length) {
+                    return;
+                }
+
+                const syncPanelState = (accordion, immediate = false) => {
+                    const button = accordion.querySelector('[data-catalog-accordion-toggle]');
+                    const panel = accordion.querySelector('[data-catalog-accordion-panel]');
+                    if (!button || !panel) {
+                        return;
+                    }
+
+                    const isOpen = accordion.classList.contains('is-open');
+                    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                    if (immediate) {
+                        panel.style.transition = 'none';
+                    }
+                    panel.style.maxHeight = isOpen ? `${panel.scrollHeight}px` : '0px';
+                    window.setTimeout(() => {
+                        panel.style.transition = '';
+                    }, 0);
+                };
+
+                accordions.forEach((accordion) => {
+                    const button = accordion.querySelector('[data-catalog-accordion-toggle]');
+                    if (!button) {
+                        return;
+                    }
+
+                    syncPanelState(accordion, true);
+
+                    button.addEventListener('click', () => {
+                        accordion.classList.toggle('is-open');
+                        syncPanelState(accordion);
+                    });
+                });
+
+                window.addEventListener('resize', () => {
+                    accordions.forEach((accordion) => {
+                        if (accordion.classList.contains('is-open')) {
+                            syncPanelState(accordion, true);
+                        }
+                    });
+                });
+            };
+
+            const initScrollRails = () => {
+                document.querySelectorAll('[data-scroll-rail]').forEach((rail) => {
+                    const viewport = rail.querySelector('[data-scroll-viewport]');
+                    const prevButton = rail.querySelector('[data-scroll-prev]');
+                    const nextButton = rail.querySelector('[data-scroll-next]');
+                    if (!viewport) {
+                        return;
+                    }
+
+                    const scrollStep = () => Math.max(Math.round(viewport.clientWidth * 0.84), 220);
+                    const updateControls = () => {
+                        const maxScroll = Math.max(viewport.scrollWidth - viewport.clientWidth, 0);
+                        if (prevButton) {
+                            prevButton.disabled = viewport.scrollLeft <= 6;
+                        }
+                        if (nextButton) {
+                            nextButton.disabled = viewport.scrollLeft >= maxScroll - 6;
+                        }
+                    };
+
+                    prevButton?.addEventListener('click', () => {
+                        viewport.scrollBy({ left: -scrollStep(), behavior: 'smooth' });
+                    });
+
+                    nextButton?.addEventListener('click', () => {
+                        viewport.scrollBy({ left: scrollStep(), behavior: 'smooth' });
+                    });
+
+                    let isDragging = false;
+                    let startX = 0;
+                    let startScrollLeft = 0;
+                    let dragged = false;
+
+                    viewport.addEventListener('pointerdown', (event) => {
+                        if (event.pointerType !== 'mouse') {
+                            return;
+                        }
+                        isDragging = true;
+                        dragged = false;
+                        startX = event.clientX;
+                        startScrollLeft = viewport.scrollLeft;
+                        viewport.classList.add('is-dragging');
+                    });
+
+                    window.addEventListener('pointermove', (event) => {
+                        if (!isDragging) {
+                            return;
+                        }
+                        const delta = event.clientX - startX;
+                        if (Math.abs(delta) > 6) {
+                            dragged = true;
+                        }
+                        viewport.scrollLeft = startScrollLeft - delta;
+                        updateControls();
+                    });
+
+                    const finishDragging = () => {
+                        if (!isDragging) {
+                            return;
+                        }
+                        isDragging = false;
+                        viewport.classList.remove('is-dragging');
+                        if (dragged) {
+                            viewport.dataset.preventClick = 'true';
+                            window.setTimeout(() => {
+                                viewport.dataset.preventClick = '';
+                            }, 140);
+                        }
+                    };
+
+                    window.addEventListener('pointerup', finishDragging);
+                    window.addEventListener('pointercancel', finishDragging);
+
+                    viewport.addEventListener('click', (event) => {
+                        if (viewport.dataset.preventClick === 'true') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                    }, true);
+
+                    viewport.addEventListener('scroll', updateControls, { passive: true });
+                    window.addEventListener('resize', updateControls);
+                    updateControls();
+                });
+            };
 
             btns.forEach((btn) => {
                 btn.onclick = (event) => {
@@ -169,6 +357,9 @@
                     modal.style.display = 'none';
                 }
             };
+
+            initCatalogAccordion();
+            initScrollRails();
 
             document.querySelectorAll('[data-add-to-cart]').forEach((button) => {
                 button.addEventListener('click', () => {

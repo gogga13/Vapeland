@@ -1,5 +1,6 @@
 import logging
 import random
+import re
 from datetime import timedelta
 
 import requests
@@ -21,6 +22,7 @@ from django.views.decorators.http import require_POST
 from app_web.email_utils import send_reset_code
 from app_web.forms import PasswordResetConfirmForm, PasswordResetRequestForm, ProfileForm, ReviewForm
 from app_web.models import (
+    Brand,
     Category,
     Order,
     OrderItem,
@@ -162,6 +164,191 @@ def unique_items(values):
         seen.add(normalized)
         result.append(normalized)
     return result
+
+
+def category_product_filter(category):
+    return Q(category=category) | Q(subcategory__parent=category) | Q(category__parent=category)
+
+
+def subcategory_product_filter(subcategory):
+    return Q(subcategory=subcategory) | Q(category=subcategory)
+
+
+def brand_product_filter(brand):
+    return Q(brand_ref=brand) | Q(brand__iexact=brand.name)
+
+
+def get_product_top_category(product):
+    category = getattr(product, "category", None)
+    if not category:
+        return None
+    return category.parent if getattr(category, "parent_id", None) else category
+
+
+def get_product_subcategory(product):
+    if getattr(product, "subcategory_id", None):
+        return product.subcategory
+
+    category = getattr(product, "category", None)
+    if category and getattr(category, "parent_id", None):
+        return category
+    return None
+
+
+def attach_product_taxonomy(products):
+    for product in products:
+        product.catalog_category = get_product_top_category(product)
+        product.catalog_subcategory = get_product_subcategory(product)
+        product.catalog_brand_name = getattr(product, "display_brand", "") or (product.brand or "").strip()
+
+
+def normalize_spec_number(value):
+    normalized = str(value or "").replace(",", ".").strip()
+    if normalized.endswith(".0"):
+        normalized = normalized[:-2]
+    return normalized
+
+
+def normalize_spec_label(value):
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("'", "ʼ")
+        .replace("`", "ʼ")
+    )
+
+
+def first_spec_match(text, patterns, formatter=None):
+    if not text:
+        return ""
+
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        if formatter:
+            return formatter(match)
+        if match.lastindex:
+            return (match.group(1) or "").strip()
+        return (match.group(0) or "").strip()
+    return ""
+
+
+def build_product_specs(product):
+    catalog_category = getattr(product, "catalog_category", None) or getattr(product, "category", None)
+    manual_specs = []
+    manual_labels = set()
+    for spec in product.specifications.all():
+        label = (spec.label or "").strip()
+        value = (spec.value or "").strip()
+        if not label or not value:
+            continue
+        manual_specs.append(
+            {
+                "label": label,
+                "value": value,
+                "is_accent": bool(spec.is_highlight),
+            }
+        )
+        manual_labels.add(normalize_spec_label(label))
+
+    text = "\n".join(
+        part.strip()
+        for part in [
+            getattr(product, "name", "") or "",
+            getattr(product, "description", "") or "",
+            getattr(product, "display_brand", "") or "",
+        ]
+        if part and part.strip()
+    )
+    lowered = text.lower()
+
+    volume = first_spec_match(
+        text,
+        [r"(\d+(?:[.,]\d+)?)\s*(?:мл|ml)\b"],
+        lambda match: f"{normalize_spec_number(match.group(1))} мл",
+    )
+    strength = first_spec_match(
+        text,
+        [
+            r"(\d+(?:[.,]\d+)?)\s*(?:мг|mg)\b",
+            r"(\d+(?:[.,]\d+)?)\s*%",
+        ],
+        lambda match: f"{normalize_spec_number(match.group(1))} {'мг' if 'м' in match.group(0).lower() else '%'}",
+    )
+    vg_pg = first_spec_match(
+        text,
+        [r"\b(\d{2}\s*/\s*\d{2})\b"],
+        lambda match: match.group(1).replace(" ", ""),
+    )
+
+    type_value = ""
+    type_map = [
+        (r"\bсольов\w*\b", "сольовий"),
+        (r"\borganic\b|\bорган[іi]ч\w*\b", "органічний"),
+        (r"\bfree\s*base\b|\bfreebase\b|\bкласичн\w*\b", "класичний"),
+        (r"\baroma\b|\bароматизатор\w*\b", "ароматизатор"),
+    ]
+    for pattern, label in type_map:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            type_value = label
+            break
+
+    country_value = ""
+    country_map = [
+        ("україна", "Україна"),
+        ("ukraine", "Україна"),
+        ("польща", "Польща"),
+        ("poland", "Польща"),
+        ("китай", "Китай"),
+        ("china", "Китай"),
+        ("малайзія", "Малайзія"),
+        ("malaysia", "Малайзія"),
+        ("сша", "США"),
+        ("usa", "США"),
+        ("америка", "США"),
+        ("велика британія", "Великобританія"),
+        ("uk", "Великобританія"),
+        ("британія", "Великобританія"),
+    ]
+    for needle, label in country_map:
+        if needle in lowered:
+            country_value = label
+            break
+
+    specs = list(manual_specs)
+    if volume:
+        if normalize_spec_label("Обʼєм") not in manual_labels:
+            specs.append({"label": "Обʼєм", "value": volume})
+    if strength:
+        if normalize_spec_label("Міцність") not in manual_labels:
+            specs.append({"label": "Міцність", "value": strength})
+    if vg_pg:
+        if normalize_spec_label("VG/PG") not in manual_labels:
+            specs.append({"label": "VG/PG", "value": vg_pg})
+    if type_value:
+        if normalize_spec_label("Тип") not in manual_labels:
+            specs.append({"label": "Тип", "value": type_value})
+    if getattr(product, "display_brand", ""):
+        if normalize_spec_label("Бренд") not in manual_labels:
+            specs.append({"label": "Бренд", "value": product.display_brand})
+    if country_value:
+        if normalize_spec_label("Країна") not in manual_labels:
+            specs.append({"label": "Країна", "value": country_value})
+    if catalog_category:
+        if normalize_spec_label("Категорія") not in manual_labels:
+            specs.append({"label": "Категорія", "value": catalog_category.name})
+    if getattr(product, "includes_glycerin", False) and getattr(product, "effective_glycerin_price", 0) > 0:
+        if normalize_spec_label("У комплекті") not in manual_labels:
+            specs.append(
+                {
+                    "label": "У комплекті",
+                    "value": f"гліцерин (+{product.effective_glycerin_price:.0f} грн)",
+                    "is_accent": True,
+                }
+            )
+    return specs
 
 
 def build_catalog_menu():
@@ -405,30 +592,113 @@ def _attach_card_image_urls(products):
 
 
 def catalog_page(request):
-    categories = Category.objects.filter(parent__isnull=True).prefetch_related("children").order_by("name")
+    categories = list(Category.objects.filter(parent__isnull=True).prefetch_related("children").order_by("name"))
     products = (
         Product.objects.filter(is_active=True)
-        .select_related("category")
+        .select_related("category", "subcategory", "brand_ref")
         .annotate(active_variant_count=Count("variants", filter=Q(variants__is_active=True), distinct=True))
         .order_by("name")
     )
+
     selected_category = None
+    selected_subcategory = None
+    selected_brand = None
     query = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "").strip()
-
-    if category_id.isdigit():
-        selected_category = categories.filter(pk=category_id).first()
-        if selected_category:
-            products = products.filter(Q(category=selected_category) | Q(category__parent=selected_category))
+    subcategory_id = request.GET.get("subcategory", "").strip()
+    brand_slug = request.GET.get("brand", "").strip()
+    search_filter = Q()
 
     if query:
-        products = products.filter(Q(name__icontains=query) | Q(brand__icontains=query) | Q(sku__icontains=query))
+        search_filter = (
+            Q(name__icontains=query)
+            | Q(brand__icontains=query)
+            | Q(brand_ref__name__icontains=query)
+            | Q(sku__icontains=query)
+            | Q(description__icontains=query)
+        )
 
-    paginator = Paginator(products, 24)
+    if category_id.isdigit():
+        selected_category = next((category for category in categories if category.id == int(category_id)), None)
+        if selected_category:
+            products = products.filter(category_product_filter(selected_category))
+
+    if subcategory_id.isdigit():
+        selected_subcategory = Category.objects.select_related("parent").filter(pk=int(subcategory_id), parent__isnull=False).first()
+        if selected_subcategory:
+            selected_category = selected_subcategory.parent
+            products = products.filter(subcategory_product_filter(selected_subcategory))
+
+    if query:
+        products = products.filter(search_filter)
+
+    brand_scope = products
+    if brand_slug:
+        if brand_slug.isdigit():
+            selected_brand = Brand.objects.filter(pk=int(brand_slug)).first()
+        else:
+            selected_brand = Brand.objects.filter(slug=brand_slug).first()
+        if selected_brand:
+            products = products.filter(brand_product_filter(selected_brand))
+
+    paginator = Paginator(products.distinct(), 24)
     page_obj = paginator.get_page(request.GET.get("page") or 1)
     page_products = list(page_obj.object_list)
     enrich_products_with_discount_data(page_products, user=request.user if request.user.is_authenticated else None)
     _attach_card_image_urls(page_products)
+    attach_product_taxonomy(page_products)
+
+    sidebar_brands = list(
+        Brand.objects.filter(products__in=brand_scope)
+        .order_by("name")
+        .distinct()
+    )
+    selected_brand_category_ids = set(selected_brand.categories.values_list("id", flat=True)) if selected_brand else set()
+    for category in categories:
+        nested_products = list(
+            Product.objects.filter(is_active=True)
+            .filter(category_product_filter(category))
+            .filter(search_filter)
+            .select_related("category", "subcategory", "brand_ref")
+            .order_by("name")
+        )
+        attach_product_taxonomy(nested_products)
+
+        child_map = {}
+        brand_map = {}
+        for nested_product in nested_products:
+            if nested_product.catalog_subcategory:
+                child_map[nested_product.catalog_subcategory.id] = nested_product.catalog_subcategory
+            if nested_product.brand_ref_id and nested_product.brand_ref:
+                brand_map[nested_product.brand_ref.id] = nested_product.brand_ref
+
+        category.sidebar_children = sorted(child_map.values(), key=lambda item: item.name.lower())
+        child_names = {child.name.casefold() for child in category.sidebar_children}
+        category.sidebar_brands = [
+            brand
+            for brand in sorted(brand_map.values(), key=lambda item: item.name.lower())
+            if brand.name.casefold() not in child_names
+        ]
+        category.sidebar_has_nested = bool(category.sidebar_children or category.sidebar_brands)
+        category.sidebar_open = bool(
+            (selected_category and selected_category.id == category.id)
+            or (selected_subcategory and selected_subcategory.parent_id == category.id)
+            or category.id in selected_brand_category_ids
+        )
+
+    page_title = "Усі товари"
+    if selected_subcategory:
+        page_title = selected_subcategory.name
+    elif selected_brand:
+        page_title = selected_brand.name
+    elif selected_category:
+        page_title = selected_category.name
+
+    page_description = (
+        f"Показані товари за запитом \"{query}\"."
+        if query
+        else "Обирайте актуальні позиції VapeLand і переходьте до потрібної категорії, підкатегорії або бренду без зайвих кроків."
+    )
 
     return render(
         request,
@@ -438,8 +708,13 @@ def catalog_page(request):
             "products": page_products,
             "page_obj": page_obj,
             "selected_category": selected_category,
+            "selected_subcategory": selected_subcategory,
+            "selected_brand": selected_brand,
+            "sidebar_brands": sidebar_brands,
             "search_query": query,
             "products_total": paginator.count,
+            "page_title": page_title,
+            "page_description": page_description,
         },
     )
 
@@ -451,11 +726,18 @@ def search_products(request):
 
     products = list(
         Product.objects.filter(is_active=True)
-        .filter(Q(name__icontains=query) | Q(brand__icontains=query) | Q(sku__icontains=query))
-        .select_related("category")
+        .filter(
+            Q(name__icontains=query)
+            | Q(brand__icontains=query)
+            | Q(brand_ref__name__icontains=query)
+            | Q(sku__icontains=query)
+            | Q(description__icontains=query)
+        )
+        .select_related("category", "subcategory", "brand_ref")
         .order_by("name")[:8]
     )
     enrich_products_with_discount_data(products, user=request.user if request.user.is_authenticated else None)
+    attach_product_taxonomy(products)
 
     results = []
     for product in products:
@@ -860,21 +1142,62 @@ def place_order(request):
 
 
 def product_detail(request, slug):
-    product = get_object_or_404(Product.objects.select_related("category"), slug=slug, is_active=True)
+    product = get_object_or_404(
+        Product.objects.select_related("category", "subcategory", "brand_ref").prefetch_related("specifications"),
+        slug=slug,
+        is_active=True,
+    )
     variants = product.variants.filter(is_active=True).order_by("id")
     primary_image_url = get_product_primary_image_url(product, variants_queryset=variants)
-    compatible = list(product.compatible_products.filter(is_active=True)[:4])
-    similar_qs = product.similar_products.filter(is_active=True).exclude(pk=product.pk)
+    compatible = list(product.compatible_products.filter(is_active=True).select_related("category", "subcategory", "brand_ref")[:4])
+    similar_qs = product.similar_products.filter(is_active=True).exclude(pk=product.pk).select_related("category", "subcategory", "brand_ref")
     similar = list(similar_qs[:4])
     if not similar:
-        similar = list(Product.objects.filter(category=product.category, is_active=True).exclude(pk=product.pk)[:4])
+        related_products = Product.objects.filter(is_active=True).exclude(pk=product.pk).select_related("category", "subcategory", "brand_ref")
+        if product.subcategory_id:
+            similar = list(related_products.filter(subcategory=product.subcategory)[:4])
+        if not similar:
+            similar = list(related_products.filter(category=product.category)[:4])
     enrich_products_with_discount_data([product], user=request.user if request.user.is_authenticated else None)
     enrich_products_with_discount_data(compatible, user=request.user if request.user.is_authenticated else None)
     enrich_products_with_discount_data(similar, user=request.user if request.user.is_authenticated else None)
     _attach_card_image_urls(compatible)
     _attach_card_image_urls(similar)
+    attach_product_taxonomy([product])
+    attach_product_taxonomy(compatible)
+    attach_product_taxonomy(similar)
+    product_specs = build_product_specs(product)
+    product_nav_categories = list(Category.objects.filter(parent__isnull=True).prefetch_related("children").order_by("name"))
+    for category in product_nav_categories:
+        category.sidebar_children = list(category.children.order_by("name"))
+    product_nav_subcategories = []
+    product_nav_brands = []
+    if product.catalog_category:
+        product_nav_subcategories = list(product.catalog_category.children.order_by("name"))
+        product_nav_brands = list(
+            Brand.objects.filter(products__is_active=True, categories=product.catalog_category)
+            .order_by("name")
+            .distinct()
+        )
     approved_reviews = product.reviews.filter(is_approved=True).select_related("user")
     review_stats = approved_reviews.aggregate(avg=Avg("rating"), count=Count("id"))
+    product_brand = product.brand_ref
+
+    category_url = reverse("catalog_page")
+    if product.catalog_category:
+        category_url = f"{category_url}?category={product.catalog_category.id}"
+
+    subcategory_url = ""
+    if product.catalog_category and product.catalog_subcategory:
+        subcategory_url = f"{reverse('catalog_page')}?category={product.catalog_category.id}&subcategory={product.catalog_subcategory.id}"
+
+    brand_url = ""
+    if product_brand:
+        brand_url = reverse("catalog_page")
+        if product.catalog_category:
+            brand_url = f"{brand_url}?category={product.catalog_category.id}&brand={product_brand.slug}"
+        else:
+            brand_url = f"{brand_url}?brand={product_brand.slug}"
 
     return render(
         request,
@@ -885,10 +1208,17 @@ def product_detail(request, slug):
             "primary_image_url": primary_image_url,
             "compatible": compatible,
             "similar": similar,
+            "product_specs": product_specs,
+            "product_nav_categories": product_nav_categories,
+            "product_nav_subcategories": product_nav_subcategories,
+            "product_nav_brands": product_nav_brands,
             "reviews": approved_reviews,
             "review_average": review_stats["avg"] or 0,
             "review_count": review_stats["count"] or 0,
             "review_form": ReviewForm(prefix="product"),
+            "category_url": category_url,
+            "subcategory_url": subcategory_url,
+            "brand_url": brand_url,
         },
     )
 
@@ -1002,7 +1332,3 @@ def password_reset_confirm_view(request):
             return redirect("account_login")
 
     return render(request, "account/password_reset_confirm.html", {"form": form, "email": email})
-
-
-
-

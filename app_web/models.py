@@ -1,4 +1,5 @@
 ﻿from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.signals import post_save
@@ -50,6 +51,8 @@ class Category(models.Model):
     is_featured = models.BooleanField(default=False, verbose_name="Показувати на головній")
 
     def __str__(self):
+        if self.parent_id and self.parent:
+            return f"{self.parent.name} / {self.name}"
         return self.name
 
     class Meta:
@@ -58,14 +61,104 @@ class Category(models.Model):
         ordering = ["name"]
 
 
+class Brand(models.Model):
+    BRAND_NAME_ALIASES = {
+        "elf-bar": "Elf Bar",
+        "elfbar": "Elf Bar",
+        "in-bottle": "Puzzle in Bottle",
+        "lost-vape": "Lost Vape",
+        "lostvaspe": "Lost Vape",
+        "lostvape": "Lost Vape",
+        "oxva": "OXVA",
+    }
+
+    name = models.CharField(max_length=100, unique=True, verbose_name="Назва бренду")
+    slug = models.SlugField(max_length=120, unique=True, blank=True, verbose_name="Slug")
+    categories = models.ManyToManyField(
+        Category,
+        blank=True,
+        related_name="brands",
+        verbose_name="Категорії",
+    )
+
+    @classmethod
+    def canonicalize_name(cls, value):
+        normalized = " ".join(str(value or "").strip().split())
+        if not normalized:
+            return ""
+        return cls.BRAND_NAME_ALIASES.get(slugify(normalized), normalized)
+
+    @classmethod
+    def build_unique_slug(cls, name, pk=None):
+        base = slugify(name) or "brand"
+        slug = base
+        counter = 2
+        while cls.objects.exclude(pk=pk).filter(slug=slug).exists():
+            slug = f"{base}-{counter}"
+            counter += 1
+        return slug
+
+    @classmethod
+    def get_or_create_from_name(cls, value):
+        name = cls.canonicalize_name(value)
+        if not name:
+            return None
+
+        brand = cls.objects.filter(name__iexact=name).first()
+        if brand:
+            changed_fields = []
+            if brand.name != name:
+                brand.name = name
+                changed_fields.append("name")
+            if not brand.slug:
+                brand.slug = cls.build_unique_slug(name, pk=brand.pk)
+                changed_fields.append("slug")
+            if changed_fields:
+                brand.save(update_fields=changed_fields)
+            return brand
+
+        return cls.objects.create(name=name, slug=cls.build_unique_slug(name))
+
+    def save(self, *args, **kwargs):
+        self.name = self.canonicalize_name(self.name)
+        if not self.slug or Brand.objects.exclude(pk=self.pk).filter(slug=self.slug).exists():
+            self.slug = self.build_unique_slug(self.name, pk=self.pk)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Бренд"
+        verbose_name_plural = "Бренди"
+        ordering = ["name"]
+
+
 class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, verbose_name="Категорія")
+    subcategory = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        related_name="subcategory_products",
+        blank=True,
+        null=True,
+        verbose_name="Підкатегорія",
+    )
     name = models.CharField(max_length=200, verbose_name="Назва товару")
     slug = models.SlugField(max_length=230, unique=True, blank=True, null=True, verbose_name="Slug")
     brand = models.CharField(max_length=100, verbose_name="Бренд", default="Vaporesso")
+    brand_ref = models.ForeignKey(
+        Brand,
+        on_delete=models.SET_NULL,
+        related_name="products",
+        blank=True,
+        null=True,
+        verbose_name="Бренд",
+    )
     sku = models.CharField(max_length=50, verbose_name="Артикул", blank=True)
     description = models.TextField(verbose_name="Опис", blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Ціна (грн)")
+    includes_glycerin = models.BooleanField(default=False, verbose_name="У комплекті є гліцерин")
     glycerin_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Гліцерин (грн)")
     stock_qty = models.PositiveIntegerField(
         verbose_name="Залишок",
@@ -95,17 +188,61 @@ class Product(models.Model):
         return self.stock_qty is None or self.stock_qty > 0
 
     @property
-    def includes_glycerin(self):
-        category_name = (self.category.name or "").strip().lower() if self.category_id and self.category else ""
-        return category_name in {"liquids", "рідини"}
+    def display_brand(self):
+        if self.brand_ref_id and self.brand_ref:
+            return self.brand_ref.name
+        return (self.brand or "").strip()
 
     @property
     def effective_glycerin_price(self):
-        return self.glycerin_price if self.includes_glycerin else 0
+        if self.includes_glycerin and self.glycerin_price and self.glycerin_price > 0:
+            return self.glycerin_price
+        return 0
 
     @property
     def effective_price(self):
         return self.price + self.effective_glycerin_price
+
+    @property
+    def category_path(self):
+        if self.subcategory_id and self.subcategory:
+            return [self.category, self.subcategory]
+        return [self.category] if self.category_id else []
+
+    def clean(self):
+        super().clean()
+
+        if self.category_id and self.category and self.category.parent_id and not self.subcategory_id:
+            self.subcategory = self.category
+            self.category = self.category.parent
+
+        if self.subcategory_id:
+            if not self.subcategory.parent_id:
+                raise ValidationError({"subcategory": "Оберіть саме підкатегорію з батьківською категорією."})
+            if self.category_id and self.subcategory.parent_id != self.category.id:
+                raise ValidationError({"subcategory": "Підкатегорія повинна належати вибраній категорії."})
+            self.category = self.subcategory.parent
+
+    def _sync_category_links(self):
+        if self.category_id and self.category and self.category.parent_id and not self.subcategory_id:
+            self.subcategory = self.category
+            self.category = self.category.parent
+
+        if self.subcategory_id and self.subcategory:
+            if self.subcategory.parent_id:
+                self.category = self.subcategory.parent
+            else:
+                self.subcategory = None
+
+    def _sync_brand_links(self):
+        if self.brand_ref_id and self.brand_ref:
+            self.brand = self.brand_ref.name
+            return
+
+        brand_obj = Brand.get_or_create_from_name(self.brand)
+        if brand_obj:
+            self.brand_ref = brand_obj
+            self.brand = brand_obj.name
 
     def build_slug(self):
         base = slugify(self.name) or slugify(self.sku) or "product"
@@ -117,9 +254,15 @@ class Product(models.Model):
         return slug
 
     def save(self, *args, **kwargs):
+        self._sync_category_links()
+        self._sync_brand_links()
+        if self.glycerin_price and self.glycerin_price > 0:
+            self.includes_glycerin = True
         if not self.slug:
             self.slug = self.build_slug()
         super().save(*args, **kwargs)
+        if self.brand_ref_id and self.category_id:
+            self.brand_ref.categories.add(self.category)
 
     def __str__(self):
         return self.name
@@ -128,6 +271,27 @@ class Product(models.Model):
         verbose_name = "Товар"
         verbose_name_plural = "Товари"
         ordering = ["name"]
+
+
+class ProductSpecification(models.Model):
+    product = models.ForeignKey(
+        Product,
+        related_name="specifications",
+        on_delete=models.CASCADE,
+        verbose_name="Товар",
+    )
+    label = models.CharField(max_length=100, verbose_name="Назва характеристики")
+    value = models.CharField(max_length=255, verbose_name="Значення")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="Порядок")
+    is_highlight = models.BooleanField(default=False, verbose_name="Виділити неоном")
+
+    def __str__(self):
+        return f"{self.product.name}: {self.label}"
+
+    class Meta:
+        verbose_name = "Характеристика товару"
+        verbose_name_plural = "Характеристики товарів"
+        ordering = ["sort_order", "id"]
 
 
 class ProductVariant(models.Model):

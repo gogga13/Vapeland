@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{{ product.name }} | VapeLand</title>
-    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260418-1">
+    <link rel="stylesheet" href="{% static 'style.css' %}?v=20260420-1">
 </head>
 <body class="site-page product-page">
     <div class="glow-bg"></div>
@@ -25,37 +25,75 @@
             {% endif %}
 
             <div class="order-layout order-layout--top product-hero">
-                <div class="auth-card auth-card--surface auth-card--full product-hero__media">
-                    <div class="card-image card-image--detail product-hero__image-frame">
-                        {% if primary_image_url %}
-                        <img
-                            id="main-product-image"
-                            src="{{ primary_image_url }}"
-                            alt="{{ product.name }}"
-                            class="product-detail-image"
-                        >
-                        {% else %}
-                        <img
-                            id="main-product-image"
-                            src="{% static 'images/logo.png' %}"
-                            alt="{{ product.name }}"
-                            class="product-detail-image"
-                        >
-                        {% endif %}
+                <div class="product-media-stack">
+                    <div class="auth-card auth-card--surface auth-card--full product-hero__media">
+                        <div class="card-image card-image--detail product-hero__image-frame">
+                            {% if primary_image_url %}
+                            <img
+                                id="main-product-image"
+                                src="{{ primary_image_url }}"
+                                alt="{{ product.name }}"
+                                class="product-detail-image"
+                            >
+                            {% else %}
+                            <img
+                                id="main-product-image"
+                                src="{% static 'images/logo.png' %}"
+                                alt="{{ product.name }}"
+                                class="product-detail-image"
+                            >
+                            {% endif %}
+                        </div>
                     </div>
+
+                    {% if product_specs %}
+                    <div class="auth-card auth-card--surface auth-card--full product-specs-card">
+                        <div class="product-specs-card__head">
+                            <p class="section-kicker section-kicker--compact">Характеристики</p>
+                            <h2 class="product-specs-card__title">Все важливе під рукою</h2>
+                        </div>
+                        <div class="product-specs-list">
+                            {% for spec in product_specs %}
+                            <div class="product-specs-item{% if spec.is_accent %} is-accent{% endif %}">
+                                <span class="product-specs-item__marker"></span>
+                                <div class="product-specs-item__copy">
+                                    <span class="product-specs-item__label">{{ spec.label }}</span>
+                                    <strong>{{ spec.value }}</strong>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div class="auth-card auth-card--surface auth-card--full auth-card--left product-hero__content">
-                    <p class="section-kicker section-kicker--compact">{{ product.brand|default:"VapeLand"|upper }}</p>
+                    <p class="section-kicker section-kicker--compact">{{ product.display_brand|default:"VapeLand"|upper }}</p>
 
                     <div class="product-hero__headline">
-                        <span class="product-hero__category">{{ product.category.name }}</span>
+                        <span class="product-hero__category">
+                            {% if product.catalog_subcategory %}
+                                {{ product.catalog_category.name }} • {{ product.catalog_subcategory.name }}
+                            {% else %}
+                                {{ product.catalog_category.name|default:product.category.name }}
+                            {% endif %}
+                        </span>
                         <h1 class="product-detail-title">{{ product.name|product_title_lines }}</h1>
                     </div>
 
-                    <p class="product-detail-description">
-                        {{ product.description|default:"Оригінальний товар VapeLand з актуальною ціною, перевіреною наявністю та швидким підтвердженням замовлення." }}
-                    </p>
+                    <div class="product-taxonomy">
+                        <a href="{{ category_url }}" class="product-taxonomy__link">{{ product.catalog_category.name|default:product.category.name }}</a>
+                        {% if product.catalog_subcategory and subcategory_url %}
+                        <a href="{{ subcategory_url }}" class="product-taxonomy__link">{{ product.catalog_subcategory.name }}</a>
+                        {% endif %}
+                        {% if product.brand_ref and brand_url %}
+                        <a href="{{ brand_url }}" class="product-taxonomy__link">{{ product.display_brand }}</a>
+                        {% endif %}
+                    </div>
+
+                    <div class="product-detail-description">
+                        {{ product.description|default:"Оригінальний товар VapeLand з актуальною ціною, перевіреною наявністю та швидким підтвердженням замовлення."|linebreaksbr }}
+                    </div>
 
                     {% if product.discount_data.has_discount %}
                     <div class="product-pricing-block">
@@ -73,7 +111,10 @@
                     <div class="product-meta-grid">
                         <div class="product-meta-card">
                             <span class="product-meta-label">Категорія</span>
-                            <strong>{{ product.category.name }}</strong>
+                            <strong>{{ product.catalog_category.name|default:product.category.name }}</strong>
+                            {% if product.catalog_subcategory %}
+                            <span class="product-meta-subvalue">{{ product.catalog_subcategory.name }}</span>
+                            {% endif %}
                         </div>
                         <div class="product-meta-card">
                             <span class="product-meta-label">Наявність</span>
@@ -95,7 +136,7 @@
                         </div>
                     </div>
 
-                    {% if product.includes_glycerin %}
+                    {% if product.includes_glycerin and product.effective_glycerin_price > 0 %}
                     <div class="included-addon" aria-label="Обов'язкова комплектація">
                         <span class="included-addon__icon">+</span>
                         <span>У комплекті: гліцерин (+{{ product.effective_glycerin_price|floatformat:0 }} грн)</span>
@@ -139,12 +180,47 @@
                         <button type="button" id="add-to-cart-button" class="btn-primary" {% if variants or product.stock_qty == 0 and not variants %}disabled{% endif %}>
                             {% if variants %}ОБЕРІТЬ ВАРІАНТ{% elif product.stock_qty == 0 and not variants %}НЕМАЄ В НАЯВНОСТІ{% else %}ДОДАТИ У КОШИК{% endif %}
                         </button>
-                        <a href="{% url 'catalog_page' %}" class="btn-ghost btn-link-block">Повернутися до каталогу</a>
+                        <a href="{% url 'catalog_page' %}{% if product.catalog_category %}?category={{ product.catalog_category.id }}{% endif %}" class="btn-ghost btn-link-block">Повернутися до каталогу</a>
                     </div>
                 </div>
             </div>
         </div>
     </section>
+
+    {% if product_nav_categories or product_nav_subcategories or product_nav_brands %}
+    <section class="section section--tight container">
+        <div class="section-header section-header--compact">
+            <div>
+                <p class="section-kicker">Навігація</p>
+                <h2 class="section-title section-title--compact">Швидко до <span>категорій і брендів</span></h2>
+            </div>
+        </div>
+
+        <div class="scroll-rail scroll-rail--chips" data-scroll-rail>
+            <button type="button" class="scroll-rail__arrow" data-scroll-prev aria-label="Прокрутити ліворуч">‹</button>
+            <div class="scroll-rail__viewport scroll-rail__viewport--chips" data-scroll-viewport>
+                {% for category in product_nav_categories %}
+                <a href="{% url 'catalog_page' %}?category={{ category.id }}" class="rail-chip{% if product.catalog_category and product.catalog_category.id == category.id %} is-active{% endif %}">
+                    {{ category.name }}
+                </a>
+                {% endfor %}
+
+                {% for child in product_nav_subcategories %}
+                <a href="{% url 'catalog_page' %}?category={{ child.parent_id }}&subcategory={{ child.id }}" class="rail-chip rail-chip--ghost{% if product.catalog_subcategory and product.catalog_subcategory.id == child.id %} is-active{% endif %}">
+                    {{ child.name }}
+                </a>
+                {% endfor %}
+
+                {% for brand in product_nav_brands|slice:":14" %}
+                <a href="{% url 'catalog_page' %}?{% if product.catalog_category %}category={{ product.catalog_category.id }}&{% endif %}brand={{ brand.slug }}" class="rail-chip rail-chip--brand{% if product.brand_ref and product.brand_ref.id == brand.id %} is-active{% endif %}">
+                    {{ brand.name }}
+                </a>
+                {% endfor %}
+            </div>
+            <button type="button" class="scroll-rail__arrow" data-scroll-next aria-label="Прокрутити праворуч">›</button>
+        </div>
+    </section>
+    {% endif %}
 
     <section class="section container">
         <div class="section-header">
@@ -201,35 +277,45 @@
             <p class="section-copy">Позиції, які найчастіше переглядають разом із цим товаром.</p>
         </div>
 
-        <div class="product-grid">
-            {% for item in similar %}
-            <div class="product-card animate-fade">
-                <a href="{% url 'product_detail' item.slug %}" class="product-card-link product-card-link--block">
-                    <div class="card-image">
-                        {% if item.discount_data.has_discount %}
-                        <span class="discount-badge">{{ item.discount_data.discount_badge }}</span>
-                        {% endif %}
-                        <img src="{{ item.card_image_url }}" alt="{{ item.name }}">
-                    </div>
-                    <div class="card-body">
-                        <span class="card-category">{{ item.category.name }}</span>
-                        <h3 class="card-name">{{ item.name }}</h3>
-                        {% if item.discount_data.has_discount %}
-                        <div class="price-stack">
-                            <span class="price-old">{{ item.discount_data.base_price|floatformat:0 }} грн</span>
-                            <span class="price-current">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+        <div class="scroll-rail scroll-rail--products" data-scroll-rail>
+            <button type="button" class="scroll-rail__arrow" data-scroll-prev aria-label="Прокрутити ліворуч">‹</button>
+            <div class="scroll-rail__viewport scroll-rail__viewport--products" data-scroll-viewport>
+                {% for item in similar %}
+                <div class="product-card product-card--rail animate-fade">
+                    <a href="{% url 'product_detail' item.slug %}" class="product-card-link product-card-link--block">
+                        <div class="card-image">
+                            {% if item.discount_data.has_discount %}
+                            <span class="discount-badge">{{ item.discount_data.discount_badge }}</span>
+                            {% endif %}
+                            <img src="{{ item.card_image_url }}" alt="{{ item.name }}">
                         </div>
-                        <p class="discount-caption">{{ item.discount_data.discount_label }}</p>
-                        {% else %}
-                        <span class="price-tag">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
-                        {% endif %}
+                        <div class="card-body">
+                            <span class="card-category">
+                                {% if item.catalog_subcategory %}
+                                    {{ item.catalog_category.name }} • {{ item.catalog_subcategory.name }}
+                                {% else %}
+                                    {{ item.catalog_category.name|default:item.category.name }}
+                                {% endif %}
+                            </span>
+                            <h3 class="card-name">{{ item.name }}</h3>
+                            {% if item.discount_data.has_discount %}
+                            <div class="price-stack">
+                                <span class="price-old">{{ item.discount_data.base_price|floatformat:0 }} грн</span>
+                                <span class="price-current">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+                            </div>
+                            <p class="discount-caption">{{ item.discount_data.discount_label }}</p>
+                            {% else %}
+                            <span class="price-tag">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="card-footer">
+                        <a href="{% url 'product_detail' item.slug %}" class="btn-ghost btn-link-block">Детальніше</a>
                     </div>
-                </a>
-                <div class="card-footer">
-                    <a href="{% url 'product_detail' item.slug %}" class="btn-ghost btn-link-block">Детальніше</a>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+            <button type="button" class="scroll-rail__arrow" data-scroll-next aria-label="Прокрутити праворуч">›</button>
         </div>
     </section>
     {% endif %}
@@ -242,35 +328,45 @@
             <p class="section-copy">Корисні доповнення, які часто беруть разом із цією позицією.</p>
         </div>
 
-        <div class="product-grid">
-            {% for item in compatible %}
-            <div class="product-card animate-fade">
-                <a href="{% url 'product_detail' item.slug %}" class="product-card-link product-card-link--block">
-                    <div class="card-image">
-                        {% if item.discount_data.has_discount %}
-                        <span class="discount-badge">{{ item.discount_data.discount_badge }}</span>
-                        {% endif %}
-                        <img src="{{ item.card_image_url }}" alt="{{ item.name }}">
-                    </div>
-                    <div class="card-body">
-                        <span class="card-category">{{ item.category.name }}</span>
-                        <h3 class="card-name">{{ item.name }}</h3>
-                        {% if item.discount_data.has_discount %}
-                        <div class="price-stack">
-                            <span class="price-old">{{ item.discount_data.base_price|floatformat:0 }} грн</span>
-                            <span class="price-current">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+        <div class="scroll-rail scroll-rail--products" data-scroll-rail>
+            <button type="button" class="scroll-rail__arrow" data-scroll-prev aria-label="Прокрутити ліворуч">‹</button>
+            <div class="scroll-rail__viewport scroll-rail__viewport--products" data-scroll-viewport>
+                {% for item in compatible %}
+                <div class="product-card product-card--rail animate-fade">
+                    <a href="{% url 'product_detail' item.slug %}" class="product-card-link product-card-link--block">
+                        <div class="card-image">
+                            {% if item.discount_data.has_discount %}
+                            <span class="discount-badge">{{ item.discount_data.discount_badge }}</span>
+                            {% endif %}
+                            <img src="{{ item.card_image_url }}" alt="{{ item.name }}">
                         </div>
-                        <p class="discount-caption">{{ item.discount_data.discount_label }}</p>
-                        {% else %}
-                        <span class="price-tag">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
-                        {% endif %}
+                        <div class="card-body">
+                            <span class="card-category">
+                                {% if item.catalog_subcategory %}
+                                    {{ item.catalog_category.name }} • {{ item.catalog_subcategory.name }}
+                                {% else %}
+                                    {{ item.catalog_category.name|default:item.category.name }}
+                                {% endif %}
+                            </span>
+                            <h3 class="card-name">{{ item.name }}</h3>
+                            {% if item.discount_data.has_discount %}
+                            <div class="price-stack">
+                                <span class="price-old">{{ item.discount_data.base_price|floatformat:0 }} грн</span>
+                                <span class="price-current">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+                            </div>
+                            <p class="discount-caption">{{ item.discount_data.discount_label }}</p>
+                            {% else %}
+                            <span class="price-tag">{{ item.discount_data.final_price|floatformat:0 }} грн</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="card-footer">
+                        <a href="{% url 'product_detail' item.slug %}" class="btn-ghost btn-link-block">Детальніше</a>
                     </div>
-                </a>
-                <div class="card-footer">
-                    <a href="{% url 'product_detail' item.slug %}" class="btn-ghost btn-link-block">Детальніше</a>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+            <button type="button" class="scroll-rail__arrow" data-scroll-next aria-label="Прокрутити праворуч">›</button>
         </div>
     </section>
     {% endif %}
@@ -285,7 +381,94 @@
             const stockNote = document.getElementById('product-stock-note');
             const variantButtons = document.querySelectorAll('.product-variant-btn');
             const mainImage = document.getElementById('main-product-image');
+            const defaultImageSrc = mainImage?.getAttribute('src') || '';
             let selectedVariantId = null;
+
+            const initScrollRails = () => {
+                document.querySelectorAll('[data-scroll-rail]').forEach((rail) => {
+                    const viewport = rail.querySelector('[data-scroll-viewport]');
+                    const prevButton = rail.querySelector('[data-scroll-prev]');
+                    const nextButton = rail.querySelector('[data-scroll-next]');
+                    if (!viewport) {
+                        return;
+                    }
+
+                    const scrollStep = () => Math.max(Math.round(viewport.clientWidth * 0.84), 220);
+                    const updateControls = () => {
+                        const maxScroll = Math.max(viewport.scrollWidth - viewport.clientWidth, 0);
+                        if (prevButton) {
+                            prevButton.disabled = viewport.scrollLeft <= 6;
+                        }
+                        if (nextButton) {
+                            nextButton.disabled = viewport.scrollLeft >= maxScroll - 6;
+                        }
+                    };
+
+                    prevButton?.addEventListener('click', () => {
+                        viewport.scrollBy({ left: -scrollStep(), behavior: 'smooth' });
+                    });
+
+                    nextButton?.addEventListener('click', () => {
+                        viewport.scrollBy({ left: scrollStep(), behavior: 'smooth' });
+                    });
+
+                    let isDragging = false;
+                    let startX = 0;
+                    let startScrollLeft = 0;
+                    let dragged = false;
+
+                    viewport.addEventListener('pointerdown', (event) => {
+                        if (event.pointerType !== 'mouse') {
+                            return;
+                        }
+                        isDragging = true;
+                        dragged = false;
+                        startX = event.clientX;
+                        startScrollLeft = viewport.scrollLeft;
+                        viewport.classList.add('is-dragging');
+                    });
+
+                    window.addEventListener('pointermove', (event) => {
+                        if (!isDragging) {
+                            return;
+                        }
+                        const delta = event.clientX - startX;
+                        if (Math.abs(delta) > 6) {
+                            dragged = true;
+                        }
+                        viewport.scrollLeft = startScrollLeft - delta;
+                        updateControls();
+                    });
+
+                    const finishDragging = () => {
+                        if (!isDragging) {
+                            return;
+                        }
+                        isDragging = false;
+                        viewport.classList.remove('is-dragging');
+                        if (dragged) {
+                            viewport.dataset.preventClick = 'true';
+                            window.setTimeout(() => {
+                                viewport.dataset.preventClick = '';
+                            }, 140);
+                        }
+                    };
+
+                    window.addEventListener('pointerup', finishDragging);
+                    window.addEventListener('pointercancel', finishDragging);
+
+                    viewport.addEventListener('click', (event) => {
+                        if (viewport.dataset.preventClick === 'true') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                    }, true);
+
+                    viewport.addEventListener('scroll', updateControls, { passive: true });
+                    window.addEventListener('resize', updateControls);
+                    updateControls();
+                });
+            };
 
             const setStockState = (stockValue) => {
                 if (!addToCartButton) {
@@ -317,16 +500,22 @@
                 }
             };
 
+            initScrollRails();
+
             variantButtons.forEach((button) => {
                 button.addEventListener('click', () => {
-                    variantButtons.forEach((item) => item.classList.remove('is-active'));
+                    variantButtons.forEach((item) => {
+                        item.classList.remove('is-active');
+                        item.setAttribute('aria-pressed', 'false');
+                    });
                     button.classList.add('is-active');
+                    button.setAttribute('aria-pressed', 'true');
                     selectedVariantId = button.dataset.variantId;
                     setStockState(button.dataset.variantStock);
 
                     const variantImage = button.dataset.variantImage;
-                    if (mainImage && variantImage) {
-                        mainImage.src = variantImage;
+                    if (mainImage) {
+                        mainImage.src = variantImage || defaultImageSrc;
                     }
                 });
             });

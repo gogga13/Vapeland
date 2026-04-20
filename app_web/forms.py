@@ -2,7 +2,7 @@
 from django import forms
 from phonenumber_field.formfields import PhoneNumberField
 
-from .models import Profile, Review
+from .models import Brand, Category, Product, Profile, Review
 
 
 class CustomSignupForm(SignupForm):
@@ -209,4 +209,75 @@ class ReviewForm(forms.ModelForm):
             "rating": "Оцінка",
             "text": "Відгук",
         }
+
+
+class ProductAdminForm(forms.ModelForm):
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 8,
+                "style": "width: 100%; max-width: 72em;",
+            }
+        ),
+        label="Опис",
+    )
+
+    class Meta:
+        model = Product
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["subcategory"].queryset = Category.objects.filter(parent__isnull=False).select_related("parent").order_by(
+            "parent__name",
+            "name",
+        )
+        self.fields["brand_ref"].queryset = Brand.objects.order_by("name")
+        self.fields["subcategory"].help_text = "Оберіть дочірню категорію. Якщо товар належить лише головній категорії, залиште поле порожнім."
+        self.fields["brand_ref"].help_text = "Бренд з довідника. Текстове поле бренду буде синхронізоване автоматично."
+
+        current_category = self.instance.category if getattr(self.instance, "pk", None) else None
+        category_value = self.data.get("category")
+        if category_value and category_value.isdigit():
+            current_category = Category.objects.filter(pk=int(category_value)).first() or current_category
+        if current_category and current_category.parent_id:
+            current_category = current_category.parent
+
+        if current_category:
+            self.fields["subcategory"].queryset = (
+                Category.objects.filter(parent=current_category).select_related("parent").order_by("name")
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        category = cleaned_data.get("category")
+        subcategory = cleaned_data.get("subcategory")
+        brand = (cleaned_data.get("brand") or "").strip()
+        brand_ref = cleaned_data.get("brand_ref")
+
+        if subcategory:
+            if not subcategory.parent_id:
+                self.add_error("subcategory", "Оберіть саме підкатегорію з батьківською категорією.")
+            elif category and subcategory.parent_id != category.id:
+                self.add_error("subcategory", "Підкатегорія повинна належати вибраній категорії.")
+            else:
+                cleaned_data["category"] = subcategory.parent
+        elif category and category.parent_id:
+            cleaned_data["subcategory"] = category
+            cleaned_data["category"] = category.parent
+
+        if brand_ref:
+            cleaned_data["brand"] = brand_ref.name
+        elif brand:
+            normalized_brand = Brand.get_or_create_from_name(brand)
+            if normalized_brand:
+                cleaned_data["brand_ref"] = normalized_brand
+                cleaned_data["brand"] = normalized_brand.name
+
+        if cleaned_data.get("glycerin_price") and cleaned_data["glycerin_price"] > 0:
+            cleaned_data["includes_glycerin"] = True
+
+        return cleaned_data
 

@@ -118,6 +118,17 @@
         font-weight: 700;
     }
 
+    .status-current {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        color: #cfd8ea;
+        font-size: 0.94rem;
+        font-weight: 700;
+    }
+
     .status-form select,
     .status-form textarea {
         width: 100%;
@@ -128,6 +139,39 @@
         padding: 12px 14px;
         margin-bottom: 14px;
         box-sizing: border-box;
+    }
+
+    .status-form select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        min-height: 50px;
+        padding-right: 52px;
+        font-size: 0.98rem;
+        font-weight: 700;
+        line-height: 1.4;
+        -webkit-text-fill-color: #ffffff;
+        background-image:
+            linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.9) 50%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.9) 50%, transparent 50%);
+        background-position:
+            calc(100% - 24px) calc(50% - 2px),
+            calc(100% - 18px) calc(50% - 2px);
+        background-size: 6px 6px, 6px 6px;
+        background-repeat: no-repeat;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .status-form select:focus,
+    .status-form textarea:focus {
+        outline: none;
+        border-color: rgba(0, 229, 255, 0.38);
+        box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.08), 0 0 24px rgba(255, 0, 255, 0.08);
+    }
+
+    .status-form select option {
+        color: #0b1020;
+        background: #f8fbff;
     }
 
     .status-form textarea {
@@ -249,9 +293,13 @@
             <form method="post" class="status-form">
                 {% csrf_token %}
                 <label for="id_status">Статус</label>
-                <select id="id_status" name="status">
+                <div class="status-current">
+                    <span>Поточний статус:</span>
+                    <span id="status-live-pill" class="status-pill status-pill--{{ order.status }}">{{ order.get_status_display }}</span>
+                </div>
+                <select id="id_status" name="status" data-status-select>
                     {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ value }}" data-status-label="{{ label }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
 
@@ -328,4 +376,24 @@
         </div>
     </section>
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const statusSelect = document.querySelector("[data-status-select]");
+        const statusPill = document.getElementById("status-live-pill");
+        if (!statusSelect || !statusPill) {
+            return;
+        }
+
+        const syncStatusPill = function () {
+            const selectedOption = statusSelect.options[statusSelect.selectedIndex];
+            const value = selectedOption ? selectedOption.value : "";
+            const label = selectedOption ? selectedOption.textContent.trim() : "";
+            statusPill.className = `status-pill status-pill--${value}`;
+            statusPill.textContent = label;
+        };
+
+        syncStatusPill();
+        statusSelect.addEventListener("change", syncStatusPill);
+    });
+</script>
 {% endblock %}

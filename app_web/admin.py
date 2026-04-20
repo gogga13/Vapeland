@@ -11,7 +11,8 @@ from import_export.formats.base_formats import CSV
 from import_export.widgets import BooleanWidget, DecimalWidget, ForeignKeyWidget
 import tablib
 
-from .models import Category, Order, OrderItem, Product, ProductDiscount, ProductVariant, Review
+from .forms import ProductAdminForm
+from .models import Brand, Category, Order, OrderItem, Product, ProductDiscount, ProductSpecification, ProductVariant, Review
 
 
 VARIANT_SEPARATOR = "|"
@@ -37,6 +38,28 @@ class CategoryByNameWidget(ForeignKeyWidget):
         return value.name if value else ""
 
 
+class SubcategoryByNameWidget(ForeignKeyWidget):
+    def clean(self, value, row=None, **kwargs):
+        subcategory_name = str(value or "").strip()
+        if not subcategory_name:
+            return None
+
+        category_name = str((row or {}).get("category") or "").strip()
+        category_name = CATEGORY_NAME_ALIASES.get(category_name.lower(), category_name)
+        if not category_name:
+            raise ValidationError("Column 'subcategory' requires a parent category value.")
+
+        category = Category.objects.filter(name=category_name, parent__isnull=True).first()
+        if not category:
+            category = Category.objects.create(name=category_name)
+
+        subcategory, _ = Category.objects.get_or_create(name=subcategory_name, parent=category)
+        return subcategory
+
+    def render(self, value, obj=None, **kwargs):
+        return value.name if value else ""
+
+
 class ProductResource(resources.ModelResource):
     @staticmethod
     def _string_value(raw_value):
@@ -54,6 +77,11 @@ class ProductResource(resources.ModelResource):
         attribute="category",
         widget=CategoryByNameWidget(Category, "name"),
     )
+    subcategory = fields.Field(
+        column_name="subcategory",
+        attribute="subcategory",
+        widget=SubcategoryByNameWidget(Category, "name"),
+    )
     price = fields.Field(
         column_name="price",
         attribute="price",
@@ -63,6 +91,11 @@ class ProductResource(resources.ModelResource):
         column_name="glycerin_price",
         attribute="glycerin_price",
         widget=DecimalWidget(),
+    )
+    includes_glycerin = fields.Field(
+        column_name="includes_glycerin",
+        attribute="includes_glycerin",
+        widget=BooleanWidget(),
     )
     stock_qty = fields.Field(
         column_name="stock_qty",
@@ -82,12 +115,14 @@ class ProductResource(resources.ModelResource):
         fields = (
             "id",
             "category",
+            "subcategory",
             "name",
             "brand",
             "sku",
             "description",
             "price",
             "glycerin_price",
+            "includes_glycerin",
             "stock_qty",
             "image",
             "is_active",
@@ -97,12 +132,14 @@ class ProductResource(resources.ModelResource):
         export_order = (
             "id",
             "category",
+            "subcategory",
             "name",
             "brand",
             "sku",
             "description",
             "price",
             "glycerin_price",
+            "includes_glycerin",
             "stock_qty",
             "image",
             "is_active",
@@ -129,6 +166,7 @@ class ProductResource(resources.ModelResource):
 
         for key in (
             "category",
+            "subcategory",
             "name",
             "brand",
             "sku",
@@ -158,7 +196,7 @@ class ProductResource(resources.ModelResource):
 
         row_has_data = any(
             str(row.get(key, "")).strip()
-            for key in ("id", "category", "name", "brand", "sku", "description", "price", "glycerin_price", "stock_qty", "image")
+            for key in ("id", "category", "subcategory", "name", "brand", "sku", "description", "price", "glycerin_price", "stock_qty", "image")
         )
         if not row_has_data and not variant_names and not variant_images:
             return
@@ -168,6 +206,10 @@ class ProductResource(resources.ModelResource):
 
         if row.get("is_active") in (None, ""):
             row["is_active"] = "1"
+
+        if row.get("includes_glycerin") in (None, ""):
+            glycerin_value = self._string_value(row.get("glycerin_price"))
+            row["includes_glycerin"] = "1" if glycerin_value and glycerin_value not in {"0", "0.0", "0.00"} else "0"
 
         if row.get("stock_qty") == "":
             row["stock_qty"] = None
@@ -315,6 +357,13 @@ class ProductDiscountInline(admin.TabularInline):
     fields = ("discount_type", "value", "start_date", "end_date", "is_active")
 
 
+class ProductSpecificationInline(admin.TabularInline):
+    model = ProductSpecification
+    extra = 1
+    fields = ("label", "value", "sort_order", "is_highlight")
+    ordering = ("sort_order", "id")
+
+
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
@@ -327,26 +376,85 @@ class OrderItemInline(admin.TabularInline):
         return f"{obj.line_total:.2f} грн"
 
 
+@admin.register(Brand)
+class BrandAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "categories_display", "products_total")
+    search_fields = ("name", "slug")
+    filter_horizontal = ("categories",)
+
+    @admin.display(description="Категорії")
+    def categories_display(self, obj):
+        return ", ".join(obj.categories.order_by("name").values_list("name", flat=True)) or "—"
+
+    @admin.display(description="Товарів")
+    def products_total(self, obj):
+        return obj.products.count()
+
+
 @admin.register(Product)
 class ProductAdmin(ImportExportModelAdmin):
+    form = ProductAdminForm
     resource_class = ProductResource
     formats = [CSV, GoogleSheetsXLSX]
     import_error_display = ("message", "row", "traceback")
-    list_display = ("name", "brand", "sku", "slug", "price", "glycerin_price", "stock_qty", "category", "is_active")
-    list_editable = ("price", "glycerin_price", "stock_qty", "is_active")
-    list_filter = ("category", "brand", "is_active")
-    search_fields = ("name", "brand", "sku", "slug", "description")
-    autocomplete_fields = ("category",)
+    list_display = (
+        "name",
+        "display_brand",
+        "sku",
+        "slug",
+        "price",
+        "glycerin_price",
+        "includes_glycerin",
+        "stock_qty",
+        "category",
+        "subcategory",
+        "is_active",
+    )
+    list_editable = ("price", "glycerin_price", "includes_glycerin", "stock_qty", "is_active")
+    list_filter = ("category", "subcategory", "brand_ref", "includes_glycerin", "is_active")
+    search_fields = ("name", "brand", "brand_ref__name", "sku", "slug", "description")
+    autocomplete_fields = ("category", "subcategory", "brand_ref")
     filter_horizontal = ("compatible_products", "similar_products")
-    inlines = [ProductVariantInline, ProductDiscountInline]
+    inlines = [ProductSpecificationInline, ProductVariantInline, ProductDiscountInline]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    ("name", "slug"),
+                    ("category", "subcategory"),
+                    ("brand_ref", "brand"),
+                    ("price", "glycerin_price", "includes_glycerin"),
+                    ("stock_qty", "is_active"),
+                    "sku",
+                    "description",
+                    "image",
+                )
+            },
+        ),
+        (
+            "Супутні блоки",
+            {
+                "fields": ("compatible_products", "similar_products"),
+            },
+        ),
+    )
+
+    @admin.display(ordering="brand_ref__name", description="Бренд")
+    def display_brand(self, obj):
+        return obj.display_brand or "—"
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "parent", "is_featured")
-    list_filter = ("is_featured",)
+    list_display = ("name", "parent", "is_featured", "children_total")
+    list_filter = ("parent", "is_featured")
     search_fields = ("name",)
     autocomplete_fields = ("parent",)
+
+    @admin.display(description="Підкатегорій")
+    def children_total(self, obj):
+        return obj.children.count()
 
 
 @admin.register(ProductDiscount)
