@@ -1166,7 +1166,7 @@ def product_detail(request, slug):
     attach_product_taxonomy([product])
     attach_product_taxonomy(compatible)
     attach_product_taxonomy(similar)
-    product_specs = build_product_specs(product)
+    product_specs = []
     approved_reviews = product.reviews.filter(is_approved=True).select_related("user")
     review_stats = approved_reviews.aggregate(avg=Avg("rating"), count=Count("id"))
     product_brand = product.brand_ref
